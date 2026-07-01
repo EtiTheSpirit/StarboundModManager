@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c8q3258ivlb4h"]
 
-[ext_resource type="Script" uid="uid://cj41q10eeu26e" path="res://SBModManager/AutoClosableWindow.cs" id="1_eqxc5"]
+[ext_resource type="Script" uid="uid://d2x121uofpxh2" path="res://SBModManager/GUI/AutoClosableWindow.cs" id="1_eqxc5"]
 
 [node name="About" type="Window" unique_id=939907019]
 oversampling_override = 1.0
@@ -42,7 +42,12 @@ layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
 text = "[font_size=28]What is SBMM?[/font_size]
-Starbound Mod Manager (SBMM) is basically a glorified file management tool. Starbound offers a config file which determines where mods, saves, and log files are located. Combined with the ability to launch starbound while telling it which config file to read, it becomes possible to have multiple configs with their own saves and mods folders. Thus, a mod manager is possible.
+Starbound Mod Manager (SBMM) is a file management tool which works in concert with Starbound's launch config system. This allows the program to create a simple list of mods, and then manage individual packs, all while using just one install of the game. Each modpack is separate, so saves and universes from one won't affect the other.
 
-[font_size=28]What About The Steam Workshop?[/font_size]
-Starbound can also load mods from the Steam Workshop. SBMM does a lot of wizardry to make this layer effectively transparent, however."
+[font_size=28]Steam Workshop Support[/font_size]
+Starbound can also load mods from the Steam Workshop. This is disabled in SBMM, however. Instead, SBMM tracks Workshop mods just like it does any other mod. This means that you can freely subscribe or unsubscribe to and from mods on the Workshop, and it won't mess up your modpacks or corrupt their saves.
+
+[font_size=28]The Mod Catalog[/font_size]
+Part of how SBMM works is through [i]The Mod Catalog[/i]. When you install a mod to any modpack, be it a workshop mod or a mod directly from a .pak file or folder, SBMM will install that mod to its internal catalog.
+
+The catalog stores every mod that you have ever installed. That way, when you create a new modpack, or edit an existing one, the catalog is sampled to determine which mods to load. No downloading required. This feature also dramatically reduces the disk space requirements for SBMM, because multiple modpacks can share just one installation of a mod, instead of requiring that mod to be installed individually in every single modpack."

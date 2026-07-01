@@ -134,7 +134,7 @@ namespace SBModManager.Attributes {
 				attributes = [];
 				CACHE[type] = attributes;
 
-				foreach (MemberInfo mbr in type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy)) {
+				foreach (MemberInfo mbr in type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.FlattenHierarchy)) {
 					if (mbr.MemberType == MemberTypes.Field || mbr.MemberType == MemberTypes.Property) {
 						// As a reminder, GetCustomAttribute instantiates a new instance of the attribute using its metadata. Use this to my advantage.
 						ImportAttribute? import = mbr.GetCustomAttribute<ImportAttribute>();

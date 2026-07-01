@@ -1,0 +1,163 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+using FileAccess = System.IO.FileAccess;
+
+namespace SBModManager.SteamInterop {
+
+	/// <summary>
+	/// Helps to manage the mods from the Steam Workshop.
+	/// </summary>
+	public static class SteamTools {
+
+
+		/// <summary>
+		/// Reads libraryfolders.vdf, which is a value stored in Steam's default installation location. This file contains
+		/// a list of every library folder and every game within it, which this method uses to try to find the install location
+		/// of Starbound.
+		/// <para/>
+		/// This method then returns the steamapps directory that contains Starbound, not the Starbound directory itself. To get that,
+		/// use <see cref="GetStarboundDirectory"/>
+		/// </summary>
+		/// <returns></returns>
+		public static string? GetSteamappsContainingStarbound() {
+			try {
+				string os = OS.GetName();
+				VDFObject vdf;
+				if (os == "Windows") {
+					vdf = VDFReader.ReadVDF(@"C:\Program Files (x86)\Steam\steamapps\libraryfolders.vdf");
+				} else if (os == "macOS") {
+					vdf = VDFReader.ReadVDF("~/Library/Application Support/Steam/steamapps/libraryfolders.vdf");
+				} else if (os == "Linux") {
+					vdf = VDFReader.ReadVDF("~/.steam/steam/steamapps/libraryfolders.vdf");
+				} else {
+					throw new NotSupportedException($"No known steam directory on OS: {os}");
+				}
+				VDFObject libraryFolders = vdf.GetChild("libraryfolders");
+				foreach (KeyValuePair<string, object> kvp in libraryFolders.Values) {
+					VDFObject libraryFolder = (VDFObject)kvp.Value;
+					string path = libraryFolder.GetValue("path");
+					VDFObject apps = libraryFolder.GetChild("apps");
+					if (apps.Values.ContainsKey("211820")) {
+						return Path.Combine(path, "steamapps");
+					}
+				}
+			} catch { }
+			return null;
+		}
+
+		/// <summary>
+		/// Reads libraryfolders.vdf, which is a value stored in Steam's default installation location. This file contains
+		/// a list of every library folder and every game within it, which this method uses to try to find the install location
+		/// of Starbound.
+		/// <para/>
+		/// Returns the full path of the game folder (C:/.../steamapps/common/Starbound) or <see langword="null"/> if it was not
+		/// found.
+		/// </summary>
+		/// <returns></returns>
+		public static string? GetStarboundDirectory() {
+			string? steamapps = GetSteamappsContainingStarbound();
+			if (steamapps == null) return null;
+			return Path2.Combine(steamapps, "common", "Starbound");
+		}
+
+		/// <summary>
+		/// Creates a series of commands which 
+		/// </summary>
+		/// <param name="ids">An array of workshop item IDs to download.</param>
+		/// <param name="skipIfInstalled">If true, workshop items that appear to be already installed are skipped.</param>
+		/// <param name="cancellationToken">Can be used to cancel the process.</param>
+		/// <returns></returns>
+		/// <exception cref="InvalidOperationException"></exception>
+		public static async Task DownloadWorkshopModsAsync(ulong[] ids, bool skipIfInstalled, CancellationToken cancellationToken) {
+			if (!SteamCMD.HasSteamCMD) throw new InvalidOperationException("SteamCMD is not available.");
+			string workshopDir = Directories.GetLocalWorkshopCacheDirectory();
+			string scriptDir = Directories.GetLocalSteamCMDTempScriptDir();
+			string scriptFile = Path2.Combine(scriptDir, Path.GetRandomFileName() + ".txt");
+			Directory.CreateDirectory(workshopDir);
+			Directory.CreateDirectory(scriptDir);
+
+			StringBuilder script = new StringBuilder();
+			script.AppendLine("@ShutdownOnFailedCommand 0");
+			script.AppendLine("login anonymous");
+			bool hadAny = false;
+			for (int i = 0; i < ids.Length; i++) {
+				if (cancellationToken.IsCancellationRequested) return;
+
+				if (skipIfInstalled) {
+					string itemPath = Path2.Combine(workshopDir, ids[i].ToString());
+					if (Directory.Exists(itemPath)) continue;
+				}
+				script.AppendLine($"download_item 211820 {ids[i]}");
+				hadAny = true;
+			}
+			if (!hadAny) return;
+
+			File.WriteAllText(scriptFile, script.ToString());
+			try {
+				await SteamCMD.RunSteamCMDScriptAsync(scriptFile, cancellationToken);
+				string baseInstallPath = Path2.Combine(Directories.GetLocalSteamCMDInstallationDirectory(), "steamapps", "content", "app_211820");
+
+				for (int i = 0; i < ids.Length; i++) {
+					if (cancellationToken.IsCancellationRequested) return;
+
+					string itemPath = Path2.Combine(baseInstallPath, $"item_{ids[i]}");
+					string destination = Path2.Combine(workshopDir, ids[i].ToString());
+					if (Directory.Exists(destination)) {
+						try {
+							Directory.Delete(destination, true);
+						} catch (DirectoryNotFoundException) { }
+					}
+					Directory.Move(itemPath, destination);
+				}
+			} catch (OperationCanceledException) {
+			} finally {
+				File.Delete(scriptFile);
+			}
+		}
+
+		/// <summary>
+		/// Efficiency-promoting method that copies every current workshop subscription into the cache.
+		/// Returns a list of every installed mod ID.
+		/// </summary>
+		/// <returns></returns>
+		public static ulong[] CopyAllCurrentSubscriptionsToCache(CancellationToken cancellationToken) {
+			List<ulong> installed = [];
+
+			string? sbPath = GetSteamappsContainingStarbound();
+			string workshopCacheDir = Directories.GetLocalWorkshopCacheDirectory();
+			if (sbPath != null) {
+				string workshopContent = Path.Combine(sbPath, "workshop", "content", "211820");
+				string[] subdirectories = Directory.GetDirectories(workshopContent);
+				for (int i = 0; i < subdirectories.Length; i++) {
+					if (cancellationToken.IsCancellationRequested) return [];
+
+					string workshopSubdirectory = subdirectories[i];
+					string? name = Path.GetFileName(workshopSubdirectory);
+
+					if (name != null && ulong.TryParse(name, out ulong workshopID)) {
+						string destination = Path2.Combine(workshopCacheDir, workshopID.ToString());
+						if (Directory.Exists(destination)) {
+							// ^ For performance, not to prevent the error.
+							try {
+								Directory.Delete(destination);
+							} catch (DirectoryNotFoundException) { }
+						}
+
+						Directories.CopyDirectory(workshopSubdirectory, destination);
+						installed.Add(workshopID);
+					}
+				}
+			} else {
+				throw new DirectoryNotFoundException("Unable to find Starbound install directory.");
+			}
+
+			return installed.ToArray();
+		}
+
+	}
+}

@@ -1,7 +1,10 @@
 [gd_scene format=3 uid="uid://ehcuhykhn26h"]
 
 [ext_resource type="Texture2D" uid="uid://dt0wnqyl5o57b" path="res://icon.svg" id="1_tjn2e"]
-[ext_resource type="PackedScene" uid="uid://dj6i10d8xumgl" path="res://Popups/edit_modpack.tscn" id="1_w0p2i"]
+[ext_resource type="Script" uid="uid://bxj2e5kcyxw4" path="res://SBModManager/Core.cs" id="1_w0p2i"]
+[ext_resource type="Script" uid="uid://c5gfgijyu5tlr" path="res://SBModManager/GUI/TooltipImageButton.cs" id="3_7a4el"]
+[ext_resource type="PackedScene" uid="uid://dii41rl1tytuv" path="res://popups/app_settings.tscn" id="4_4sclt"]
+[ext_resource type="PackedScene" uid="uid://dj6i10d8xumgl" path="res://popups/edit_modpack_details.tscn" id="5_ywh4s"]
 
 [node name="MainScreen" type="Panel" unique_id=718710276]
 anchors_preset = 15
@@ -9,10 +12,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-
-[node name="EditModpack" parent="." unique_id=939907019 instance=ExtResource("1_w0p2i")]
-visible = false
-force_native = true
+script = ExtResource("1_w0p2i")
 
 [node name="MarginContainer" type="MarginContainer" parent="." unique_id=2142671540]
 layout_mode = 1
@@ -33,59 +33,94 @@ layout_mode = 2
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 
-[node name="NewModpack" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=312914462]
+[node name="NewOSBModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1384851246]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
+tooltip_text = "Create a new modpack using the latest version of OpenStarbound."
 texture_normal = ExtResource("1_tjn2e")
 ignore_texture_size = true
 stretch_mode = 0
+script = ExtResource("3_7a4el")
 
-[node name="NewOSBModpack" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1384851246]
+[node name="NewModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=312914462]
 unique_name_in_owner = true
+visible = false
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-texture_normal = ExtResource("1_tjn2e")
-ignore_texture_size = true
-stretch_mode = 0
+tooltip_text = "Create a new modpack using Starbound 1.14.
 
-[node name="DuplicateModpack" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=733481348]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 2
+[color=#f77]You should prefer using OpenStarbound instead[/color]. OpenStarbound is a community patch to base Starbound that fixes dozens of bugs, crashes, and memory leaks."
 texture_normal = ExtResource("1_tjn2e")
 ignore_texture_size = true
 stretch_mode = 0
+script = ExtResource("3_7a4el")
+
+[node name="DuplicateModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=733481348]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+tooltip_text = "Create a copy of the current selected modpack, carrying over every mod, setting, character, and world."
+texture_normal = ExtResource("1_tjn2e")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("3_7a4el")
+
+[node name="ImportModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1291402901]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+tooltip_text = "Import a modpack from a list or archive."
+texture_normal = ExtResource("1_tjn2e")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("3_7a4el")
 
 [node name="VSeparator" type="VSeparator" parent="MarginContainer/VBoxContainer/Tools" unique_id=197170488]
 layout_mode = 2
 
-[node name="EditModpack" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1345846559]
+[node name="EditModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1345846559]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
+tooltip_text = "Configure the settings associated with the selected modpack."
 texture_normal = ExtResource("1_tjn2e")
 ignore_texture_size = true
 stretch_mode = 0
+script = ExtResource("3_7a4el")
 
-[node name="DeleteModpack" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=732978601]
+[node name="DeleteModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=732978601]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
+tooltip_text = "Permanently delete the selected modpack."
 texture_normal = ExtResource("1_tjn2e")
 ignore_texture_size = true
 stretch_mode = 0
+script = ExtResource("3_7a4el")
 
 [node name="VSeparator2" type="VSeparator" parent="MarginContainer/VBoxContainer/Tools" unique_id=1313816397]
 layout_mode = 2
 
-[node name="Help" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=2133547503]
+[node name="ConfigButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=2133547503]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
+tooltip_text = "Modify the app's settings and provide it with tools that are needed to function."
 texture_normal = ExtResource("1_tjn2e")
 ignore_texture_size = true
 stretch_mode = 0
+script = ExtResource("3_7a4el")
+
+[node name="HelpButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1144096353]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+tooltip_text = "Get help and information about the app."
+texture_normal = ExtResource("1_tjn2e")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("3_7a4el")
 
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer" unique_id=1423019913]
 layout_mode = 2
@@ -106,3 +141,11 @@ To report issues or request upgrades, visit [color=#aff][url]https://github.com/
 fit_content = true
 scroll_active = false
 vertical_alignment = 2
+
+[node name="AppSettings" parent="." unique_id=939907019 instance=ExtResource("4_4sclt")]
+unique_name_in_owner = true
+visible = false
+
+[node name="EditModpack" parent="." unique_id=1489936823 instance=ExtResource("5_ywh4s")]
+unique_name_in_owner = true
+visible = false
