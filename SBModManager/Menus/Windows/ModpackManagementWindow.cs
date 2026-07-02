@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 using SBModManager.Attributes;
+using SBModManager.GUI;
 using SBModManager.Menus;
 using SBModManager.ModInstances;
 
@@ -21,10 +22,10 @@ namespace SBModManager.Menus.Windows {
 		public Button ExportButton { get; }
 
 		/// <summary>
-		/// This button applies all edits.
+		/// This button opens a prompt to export the modpack.
 		/// </summary>
 		[Import, AllowNull]
-		public Button OKButton { get; }
+		public Button ApplyButton { get; }
 
 		/// <summary>
 		/// The tab window for the editor.
@@ -44,20 +45,44 @@ namespace SBModManager.Menus.Windows {
 		[Import, AllowNull]
 		public ViewModListPanel ViewModList { get; }
 
+		/// <summary>
+		/// The modpack being managed.
+		/// </summary>
+		public Modpack? CurrentModpack { get; private set; }
+
 		public override void _Ready() {
 			ImportAttribute.ImportAll(this);
 
 			CloseRequested += OnCloseRequested;
 			AboutToPopup += OnAboutToPopUp;
+			ApplyButton.Pressed += EmitSignalCloseRequested;
+			if (CurrentModpack != null) {
+				AssignModpackImpl(CurrentModpack);
+			}
+			Tabs.CurrentTab = 0;
+		}
+
+		public override void _UnhandledKeyInput(InputEvent @event) {
+			if (@event is InputEventKey key && @event.IsPressed()) {
+				if (key.Keycode == Key.Pageup) {
+					MovingRichTextLabel.MostRecentTooltip?.ScrollUp();
+				} else if (key.Keycode == Key.Pagedown) {
+					MovingRichTextLabel.MostRecentTooltip?.ScrollDown();
+				}
+			}
 		}
 
 		private void OnAboutToPopUp() {
-			Tabs.CurrentTab = 1;
+			Tabs.CurrentTab = 0;
 		}
 
 		private void OnCloseRequested() {
 			EditModpackDetails.OnClosing();
 			ViewModList.OnClosing();
+			if (CurrentModpack != null) {
+				Core.Instance.RefreshModpackDisplay(CurrentModpack);
+			}
+			Hide();
 		}
 
 		/// <summary>
@@ -66,6 +91,14 @@ namespace SBModManager.Menus.Windows {
 		/// <param name="modpack"></param>
 		public void AssignModpack(Modpack modpack) {
 			ArgumentNullException.ThrowIfNull(modpack);
+			CurrentModpack = modpack;
+			if (IsNodeReady()) {
+				AssignModpackImpl(modpack);
+			}
+		}
+
+		private void AssignModpackImpl(Modpack modpack) {
+			CurrentModpack = modpack;
 			EditModpackDetails.SetModpack(modpack);
 			ViewModList.SetModpack(modpack);
 		}

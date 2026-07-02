@@ -27,9 +27,16 @@ namespace SBModManager.ModInstances {
 					if (data != null) {
 						FileInfo previewImage = new FileInfo(Path2.Combine(archiveFolder.FullName, "_previewimage"));
 						if (previewImage.Exists) {
-							try {
-								data["preview_image"] = ImageTexture.CreateFromImage(Image.LoadFromFile(previewImage.FullName));
-							} catch { }
+							// See Modpack.TrySetIcon for the explanation as to why LoadFromFile is not being used.
+							byte[] buffer = File.ReadAllBytes(previewImage.FullName);
+							Image result = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+							Error error = result.LoadPngFromBuffer(buffer);
+							if (error != Error.Ok) {
+								error = result.LoadJpgFromBuffer(buffer);
+							}
+							if (error == Error.Ok) {
+								data["preview_image"] = ImageTexture.CreateFromImage(result);
+							}
 						}
 					}
 					return data;
@@ -114,6 +121,7 @@ namespace SBModManager.ModInstances {
 								// Hunch: Might be jpg
 								loadError = image.LoadJpgFromBuffer(buffer);
 								if (loadError == Error.Ok) {
+									GD.Print("The previous warning about a corrupt image can be ignored. It's fine, it was just a jpeg instead.");
 									json["preview_image"] = ImageTexture.CreateFromImage(image);
 								}
 							}

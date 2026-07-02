@@ -15,6 +15,7 @@ using SBModManager.Attributes;
 using HttpClient = System.Net.Http.HttpClient;
 using FileAccess = System.IO.FileAccess;
 using SBModManager.SteamInterop;
+using System.Formats.Tar;
 
 namespace SBModManager.Menus {
 	public partial class ProgramSettingsWindow : Window {
@@ -104,7 +105,6 @@ namespace SBModManager.Menus {
 					NoStarboundRequiredNotice.SelfModulate = Colors.Transparent;
 				}
 				SetSteamCMDNoteText();
-				ProgramSettings.Load();
 				SteamCMDLocationInput.Text = ProgramSettings.SteamCMD?.FullName ?? string.Empty;
 			}
 		}
@@ -192,7 +192,22 @@ namespace SBModManager.Menus {
 
 			try {
 				using ZipArchive archive = new ZipArchive(File.OpenRead(openStarboundZipLocation), ZipArchiveMode.Read);
-				archive.ExtractToDirectory(destination);
+				if (OS.GetName() != "Windows") {
+					// Mac and Linux have "client.tar"
+					Stream clientTar = archive.GetEntry("client.tar")!.Open();
+					TarFile.ExtractToDirectory(clientTar, destination, true);
+					// Almost there. This now creates a client_distribution folder which we don't want.
+
+					DirectoryInfo clientDistro = new DirectoryInfo(Path2.Combine(destination, "client_distribution"));
+					foreach (DirectoryInfo child in clientDistro.GetDirectories()) {
+						Directory.Move(child.FullName, Path2.Combine(destination, child.Name));
+					}
+					clientDistro.Delete(false);
+
+					// Now we're good.
+				} else {
+					archive.ExtractToDirectory(destination);
+				}
 			} catch {
 				OS.Alert("Failed to extract OpenStarbound's zip file.", "Error");
 				return;

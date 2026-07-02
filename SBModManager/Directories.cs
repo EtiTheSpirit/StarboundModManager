@@ -31,6 +31,25 @@ namespace SBModManager {
 		}
 
 		/// <summary>
+		/// Returns the location of the Starbound executable.
+		/// </summary>
+		/// <returns></returns>
+		public static string GetPrivateStarboundProgram() {
+			string baseDir = GetPrivateStarboundInstallDirectory();
+			string os = OS.GetName();
+			if (os == "Windows") {
+				return Path2.Combine(baseDir, "win", "Starbound.exe");
+			} else if (os == "macOS") {
+				return Path2.Combine(baseDir, "osx", "Starbound.app");
+			} else if (os == "Linux") {
+				return Path2.Combine(baseDir, "linux", "starbound");
+			} else {
+				OS.Alert($"Cannot get Starbond installation on OS: {os}");
+				throw new InvalidOperationException($"Cannot get Starbond installation on OS: {os}");
+			}
+		}
+
+		/// <summary>
 		/// Returns the base directory for all modpacks.
 		/// </summary>
 		/// <returns></returns>
@@ -54,6 +73,15 @@ namespace SBModManager {
 		/// <returns></returns>
 		public static string GetPackInfoFile(Guid modpackID) {
 			return Path2.Combine(GetPackDirectory(modpackID), "info.json");
+		}
+
+		/// <summary>
+		/// Returns the path of the information json file for the modpack with the provided ID.
+		/// </summary>
+		/// <param name="modpackID"></param>
+		/// <returns></returns>
+		public static string GetPackSBInitFile(Guid modpackID) {
+			return Path2.Combine(GetPackDirectory(modpackID), "sbinit.config");
 		}
 
 		/// <summary>
@@ -85,8 +113,16 @@ namespace SBModManager {
 		/// Returns the path to a folder used to store temporary files for scripts.
 		/// </summary>
 		/// <returns></returns>
-		public static string GetLocalSteamCMDTempScriptDir() {
+		public static string GetLocalSteamCMDTempScriptDirectory() {
 			return ProjectSettings.GlobalizePath("user://steamcmd_tempscripts");
+		}
+
+		/// <summary>
+		/// Returns the path to a folder used to download inline images used in Steam Workshop descriptions.
+		/// </summary>
+		/// <returns></returns>
+		public static string GetSteamImageCacheDirectory() {
+			return ProjectSettings.GlobalizePath("user://workshop_description_image_cache");
 		}
 
 		/// <summary>
@@ -139,8 +175,7 @@ namespace SBModManager {
 		/// </summary>
 		/// <param name="profileName"></param>
 		public static void LaunchGame(Guid modpackID) {
-			string directory = GetPackDirectory(modpackID);
-			string sbInit = Path2.Combine(directory, "sbinit.config");
+			string sbInit = GetPackSBInitFile(modpackID);
 		}
 
 		/// <summary>

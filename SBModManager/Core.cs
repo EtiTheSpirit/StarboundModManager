@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Godot;
 
@@ -14,6 +18,12 @@ using SBModManager.SteamInterop;
 
 namespace SBModManager {
 	public sealed partial class Core : Panel {
+
+		/// <summary>
+		/// Allows access to the main window from outside.
+		/// </summary>
+		[AllowNull]
+		public static Core Instance { get; private set; }
 
 		[AllowNull, Import]
 		public TextureButton NewOSBModpackButton { get; }
@@ -53,9 +63,17 @@ namespace SBModManager {
 		private ModpackEntry? _currentSelectedEntryButton;
 		private Modpack? _currentSelectedModpack;
 
+		/// <summary>
+		/// The process of the current launch of Starbound. Used to know when to unlock the menu.
+		/// </summary>
+		private Process? _starbound;
+		private CancellationTokenSource? _cancelPreppingLaunch;
+		private Task? _starboundLaunchAndRunTask;
 
 		public override void _Ready() {
 			ImportAttribute.ImportAll(this);
+			Instance = this;
+			ProgramSettings.Load();
 
 			NewOSBModpackButton.Pressed += OnNewOSBModpackButtonPressed;
 			DuplicateModpackButton.Pressed += OnDuplicateModpackButtonPressed;
@@ -70,6 +88,7 @@ namespace SBModManager {
 			Directory.CreateDirectory(modpacks);
 			PackedScene entry = GD.Load<PackedScene>("res://ui_elements/modpack_entry.tscn");
 
+
 			foreach (string subdirectory in Directory.GetDirectories(modpacks)) {
 				string nameOnly = Path.GetFileName(subdirectory);
 				if (Guid.TryParse(nameOnly, out Guid modpackID)) {
@@ -80,8 +99,36 @@ namespace SBModManager {
 						button.Name = modpackID.ToString("D");
 						button.AssignOrUpdateModpack(modpack);
 						button.OnModpackSelected += SetSelection;
+						button.OnModpackDoubleClicked += Launch;
 						ModpacksList.AddChild(button);
 					}
+				}
+			}
+		}
+
+		public void RefreshModpackDisplay(Modpack pack) {
+			ModpackEntry? button = null;
+			if (_currentSelectedModpack == pack) {
+				// Fast path
+				button = _currentSelectedEntryButton;
+			} else {
+				// Slow path that also *should* be impossible?
+				foreach (Node child in ModpacksList.GetChildren()) {
+					if (child is ModpackEntry entry && entry.Modpack == pack) {
+						button = entry;
+						break;
+					}
+				}
+			}
+			button?.AssignOrUpdateModpack(pack);
+		}
+
+		public override void _UnhandledKeyInput(InputEvent @event) {
+			if (@event is InputEventKey key && @event.IsPressed()) {
+				if (key.Keycode == Key.Pageup) {
+					MovingRichTextLabel.MostRecentTooltip?.ScrollUp();
+				} else if (key.Keycode == Key.Pagedown) {
+					MovingRichTextLabel.MostRecentTooltip?.ScrollDown();
 				}
 			}
 		}
@@ -93,13 +140,62 @@ namespace SBModManager {
 			_currentSelectedModpack = clicked.Modpack;
 		}
 
+		private void Launch(Modpack modpack, ModpackEntry clicked) {
+			PackedScene launchPromptScene = GD.Load<PackedScene>("res://popups/launching.tscn");
+			LaunchingWindow launching = launchPromptScene.Instantiate<LaunchingWindow>();
+			_cancelPreppingLaunch = new CancellationTokenSource();
+			launching.ShowWithCancellation(_cancelPreppingLaunch);
+			AddChild(launching);
+			UpdateButtonUsability();
+			_starboundLaunchAndRunTask = LaunchAsync(modpack, launching);
+		}
+
+		private async Task LaunchAsync(Modpack modpack, LaunchingWindow launching) {
+			launching.SetStatus("Downloading mods...");
+			try {
+				await modpack.SaveAndUpdateInitAsync(_cancelPreppingLaunch!.Token);
+				ProcessStartInfo game = new ProcessStartInfo {
+					FileName = Directories.GetPrivateStarboundProgram()
+				};
+				game.ArgumentList.Add("-bootconfig");
+				game.ArgumentList.Add(modpack.SBInitPath);
+				_starbound = Process.Start(game);
+				if (_starbound == null) {
+					throw new InvalidOperationException("Failed to launch Starbound.");
+				} else {
+					launching.SetStatus("Starbound is running!");
+					launching.SetProgress(1.0f);
+					launching.CancelButton.Text = "Exit Starbound";
+					await _starbound.WaitForExitAsync(_cancelPreppingLaunch.Token);
+					_starbound = null;
+					if (IsInstanceValid(launching)) {
+						launching.QueueFree();
+					}
+				}
+			} catch (OperationCanceledException) {
+				if (_starbound != null) {
+					_starbound.Kill();
+					_starbound = null;
+				}
+			} finally {
+				if (IsInstanceValid(launching)) {
+					launching.QueueFree();
+				}
+				_cancelPreppingLaunch = null;
+				_starboundLaunchAndRunTask = null;
+				UpdateButtonUsability();
+			}
+		}
+
 		private void UpdateButtonUsability() {
-			if (!IsFullySetUp()) {
+			if (!IsFullySetUp() || (_starbound != null && !_starbound.HasExited) || _cancelPreppingLaunch != null) {
 				NewOSBModpackButton.Disabled = true;
 				DuplicateModpackButton.Disabled = true;
 				ImportModpackButton.Disabled = true;
 				EditModpackButton.Disabled = true;
 				DeleteModpackButton.Disabled = true;
+				if (EditModpack.Visible) EditModpack.Hide();
+				
 
 				// TODO: Alert icon for config.
 			} else {
@@ -126,11 +222,13 @@ namespace SBModManager {
 			PackedScene entry = GD.Load<PackedScene>("res://ui_elements/modpack_entry.tscn");
 			Modpack modpack = new Modpack();
 			CurrentModpacks.Add(modpack);
+			modpack.SaveAndUpdateInitAsync(CancellationToken.None).Wait();
 
 			ModpackEntry button = entry.Instantiate<ModpackEntry>();
 			button.Name = modpack.ID.ToString("D");
 			button.AssignOrUpdateModpack(modpack);
 			button.OnModpackSelected += SetSelection;
+			button.OnModpackDoubleClicked += Launch;
 			ModpacksList.AddChild(button);
 		}
 		
@@ -158,8 +256,8 @@ namespace SBModManager {
 			if (_currentSelectedModpack == null) {
 				return;
 			}
-			EditModpack.AssignModpack(_currentSelectedModpack);
 			EditModpack.Show();
+			EditModpack.AssignModpack(_currentSelectedModpack);
 		}
 
 		private void OnDeleteModpackButtonPressed() {
@@ -167,7 +265,35 @@ namespace SBModManager {
 				AppSettings.Show();
 				return;
 			}
-			throw new NotImplementedException();
+			if (_currentSelectedModpack == null) {
+				return;
+			}
+			Modpack modpack = _currentSelectedModpack;
+			PackedScene popupScene = GD.Load<PackedScene>("res://popups/confirm_delete.tscn");
+			ConfirmDeletePopup popup = popupScene.Instantiate<ConfirmDeletePopup>();
+			AddChild(popup);
+
+			popup.ShowAsync(_currentSelectedModpack.Name).ContinueWith(task => {
+				if (task.Result) {
+					// Deselect if needed...
+					if (_currentSelectedModpack == modpack) {
+						_currentSelectedEntryButton?.SetSelectedAppearance(false);
+						_currentSelectedModpack = null;
+						_currentSelectedEntryButton = null;
+					}
+					foreach (Node node in ModpacksList.GetChildren()) {
+						if (node is ModpackEntry entry && entry.Modpack == modpack) {
+							entry.QueueFree();
+							if (EditModpack.CurrentModpack == modpack) {
+								EditModpack.Hide();
+							}
+							CurrentModpacks.Remove(modpack);
+							modpack.Delete();
+							break;
+						}
+					}
+				}
+			}, TaskScheduler.FromCurrentSynchronizationContext());
 		}
 
 		private void OnConfigButtonPressed() {

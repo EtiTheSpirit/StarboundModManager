@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using System.Threading;
 
 using SBModManager.Attributes;
 using SBModManager.ModInstances;
@@ -70,7 +71,7 @@ namespace SBModManager.Menus {
 		private void OnIconSelected(string path) {
 			if (EditingModpack == null) return;
 			Texture2D? texture = EditingModpack.TrySetIcon(path);
-			ModpackIcon.Texture = texture ?? Core.GetStarboundIcon();
+			ModpackIcon.Texture = texture ?? EditingModpack.GetIcon(); // Keep old icon if it fails.
 		}
 
 		private void OnChangeIconPressed() {
@@ -93,6 +94,7 @@ namespace SBModManager.Menus {
 				EditingModpack.Name = newName;
 				EditingModpack.Creator = ModpackCreatorEntry.Text;
 				EditingModpack.Description = DescriptionEntry.Text;
+				EditingModpack.SaveAndUpdateInitAsync(CancellationToken.None).Wait();
 			}
 		}
 

@@ -77,9 +77,11 @@ namespace SBModManager.SteamInterop {
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		public static async Task DownloadWorkshopModsAsync(ulong[] ids, bool skipIfInstalled, CancellationToken cancellationToken) {
+			if (ids.Length == 0) return;
+
 			if (!SteamCMD.HasSteamCMD) throw new InvalidOperationException("SteamCMD is not available.");
 			string workshopDir = Directories.GetLocalWorkshopCacheDirectory();
-			string scriptDir = Directories.GetLocalSteamCMDTempScriptDir();
+			string scriptDir = Directories.GetLocalSteamCMDTempScriptDirectory();
 			string scriptFile = Path2.Combine(scriptDir, Path.GetRandomFileName() + ".txt");
 			Directory.CreateDirectory(workshopDir);
 			Directory.CreateDirectory(scriptDir);

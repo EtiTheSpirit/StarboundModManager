@@ -53,6 +53,11 @@ namespace SBModManager.ModInstances {
 		public Guid ID { get; }
 
 		/// <summary>
+		/// An alias to using <see cref="Directories.GetPackSBInitFile(Guid)"/>
+		/// </summary>
+		public string SBInitPath => Directories.GetPackSBInitFile(ID);
+
+		/// <summary>
 		/// The mods that are part of this pack, then their state (enabled or disabled).
 		/// </summary>
 		public Dictionary<ModSource, bool> ModSources { get; } = [];
@@ -88,12 +93,13 @@ namespace SBModManager.ModInstances {
 				Description = data.GetValueAsStringOrDefault("description", "")
 			};
 
-			GDDictionary modSources = (GDDictionary)data["mod_sources"];
+			GDArray modSources = (GDArray)data["mod_sources"];
 			HashSet<ulong> alreadyGotWorkshop = [];
 			HashSet<string> alreadyGotNamed = [];
-			foreach (KeyValuePair<Variant, Variant> binding in modSources) {
-				string key = binding.Key.As<string>();
-				int flags = binding.Value.As<int>();
+			foreach (Variant innerArrayVar in modSources) {
+				GDArray innerArray = innerArrayVar.As<GDArray>();
+				string key = innerArray[0].As<string>();
+				int flags = innerArray[1].As<int>();
 				bool isWorkshop = (flags & 2) != 0;
 				bool isEnabled = (flags & 1) != 0;
 
@@ -131,23 +137,34 @@ namespace SBModManager.ModInstances {
 			return pack;
 		}
 
-		public void Save() {
+		public async Task SaveAndUpdateInitAsync(CancellationToken cancellationToken) {
 			GDDictionary data = [];
 			data["name"] = Name;
 			data["creator"] = Creator;
 			data["description"] = Description;
-			GDDictionary modSources = [];
+
+			// This is an array because of a possible edge case where a mod's name is just numbers.
+			GDArray modSources = [];
 			foreach (KeyValuePair<ModSource, bool> binding in ModSources) {
 				ModSource source = binding.Key;
 				bool enabled = binding.Value;
 				int flags = (source.IsWorkshopMod ? 2 : 0) | (enabled ? 1 : 0);
-				modSources[source.PersistentName] = flags;
+				modSources.Add(new GDArray { source.PersistentName, flags });
 			}
 			data["mod_sources"] = modSources;
 
 			string packJson = Directories.GetPackInfoFile(ID);
+			string sbInitJson = Directories.GetPackSBInitFile(ID);
 			Directory.CreateDirectory(Path.GetDirectoryName(packJson)!);
 			File.WriteAllText(packJson, Json.Stringify(data));
+
+			GDDictionary sbInit = await MakeSBInitAsync(cancellationToken).ConfigureAwait(false);
+			File.WriteAllText(sbInitJson, Json.Stringify(sbInit));
+		}
+
+		public void Delete() {
+			string packDirectory = Directories.GetPackDirectory(ID);
+			Directory.Delete(packDirectory, true);
 		}
 
 		/// <summary>
@@ -158,9 +175,16 @@ namespace SBModManager.ModInstances {
 			string directory = Directories.GetPackDirectory(ID);
 			string icon = Path2.Combine(directory, "icon.png");
 			try {
-				Image? result = Image.LoadFromFile(icon);
-				if (result != null) {
-					return ImageTexture.CreateFromImage(result);
+				if (File.Exists(icon)) {
+					byte[] buffer = File.ReadAllBytes(icon);
+					Image result = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+					Error error = result.LoadPngFromBuffer(buffer);
+					if (error != Error.Ok) {
+						error = result.LoadJpgFromBuffer(buffer);
+					}
+					if (error == Error.Ok) {
+						return ImageTexture.CreateFromImage(result);
+					}
 				}
 			} catch { }
 			return Core.GetStarboundIcon();
@@ -172,21 +196,27 @@ namespace SBModManager.ModInstances {
 		/// <param name="imageFile"></param>
 		public Texture2D? TrySetIcon(string imageFile) {
 			string directory = Directories.GetPackDirectory(ID);
-			string icon = Path2.Combine(directory, "icon.png");
+			string destination = Path2.Combine(directory, "icon.png");
 			try {
-				Image? result = Image.LoadFromFile(imageFile);
-				if (result != null) {
+				// "Why not just Image.LoadFromFile?"
+				// Because while giggling to myself like a fucking idiot at 3 AM over setting the thumbnail icon to various memes,
+				// I realized that sometimes people upload their jpegs with the png extension. Godot uses the file extension to
+				// load the images instead of the data, which causes LoadFromFile to break.
+
+				// also lol
+				byte[] buffer = File.ReadAllBytes(imageFile);
+				Image result = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
+				Error error = result.LoadPngFromBuffer(buffer);
+				if (error != Error.Ok) {
+					error = result.LoadJpgFromBuffer(buffer);
+				}
+				if (error == Error.Ok) {
 					result.Resize(256, 256, Image.Interpolation.Lanczos);
-					result.SavePng(icon);
+					result.SavePng(destination);
 					return ImageTexture.CreateFromImage(result);
 				}
 			} catch { }
 			return null;
-		}
-
-		public void Launch() {
-			CancellationTokenSource canceller = new CancellationTokenSource();
-
 		}
 
 		/// <summary>
@@ -195,7 +225,7 @@ namespace SBModManager.ModInstances {
 		/// </summary>
 		/// <returns></returns>
 		/// <exception cref="OperationCanceledException"></exception>
-		private async Task<string> PrepareForLaunchAsync(CancellationToken cancellationToken) {
+		private async Task<GDDictionary> MakeSBInitAsync(CancellationToken cancellationToken) {
 			GDArray assetDirectories = [];
 			assetDirectories.Add(Path2.Combine(Directories.GetPrivateStarboundInstallDirectory(), "assets"));
 			assetDirectories.Add(Directories.GetExtraAssetsDirectory(ID));
@@ -220,8 +250,13 @@ namespace SBModManager.ModInstances {
 			sbInit["storageDirectory"] = Directories.GetStorageDirectory(ID);
 			sbInit["includeUGC"] = false;
 
-			return Json.Stringify(sbInit, "\t", false, false);
+			return sbInit;
 		}
 
+
+		public void Launch() {
+			CancellationTokenSource canceller = new CancellationTokenSource();
+
+		}
 	}
 }

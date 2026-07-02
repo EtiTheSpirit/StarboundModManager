@@ -26,10 +26,17 @@ namespace SBModManager.GUI {
 		public Action<Modpack, ModpackEntry>? OnModpackSelected { get; set; }
 
 		/// <summary>
+		/// A callback invoked when the modpack is double-clicked.
+		/// </summary>
+		public Action<Modpack, ModpackEntry>? OnModpackDoubleClicked { get; set; }
+
+		/// <summary>
 		/// The modpack that this was set to.
 		/// </summary>
 		[AllowNull]
 		public Modpack Modpack { get; private set; }
+
+		private long _lastPressedThisPack = 0;
 
 		public override void _Ready() {
 			ImportAttribute.ImportAll(this);
@@ -43,7 +50,16 @@ namespace SBModManager.GUI {
 			Color = selected ? new Color(0.1f, 0.2f, 0.4f, 0.5f) : Colors.Transparent;
 		}
 
-		private void _OnModpackSelected() => OnModpackSelected?.Invoke(Modpack, this);
+		private void _OnModpackSelected() {
+			long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+			if (now - _lastPressedThisPack < 250) {
+				OnModpackDoubleClicked?.Invoke(Modpack, this);
+			} else {
+				OnModpackSelected?.Invoke(Modpack, this);
+			}
+			_lastPressedThisPack = now;
+			
+		}
 
 		/// <summary>
 		/// Sets the modpack that is displayed.
@@ -69,6 +85,8 @@ namespace SBModManager.GUI {
 				ModpackIcon.TooltipText = $"{pack.Name} by {pack.Creator}";
 			} else if (hasDescription) {
 				ModpackIcon.TooltipText = $"{pack.Name}\n\n{pack.Description}";
+			} else {
+				ModpackIcon.TooltipText = pack.Name;
 			}
 			ModpackName.TooltipText = ModpackIcon.TooltipText;
 		}

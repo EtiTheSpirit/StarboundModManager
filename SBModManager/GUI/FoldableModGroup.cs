@@ -41,11 +41,14 @@ namespace SBModManager.GUI {
 			ImportAttribute.ImportAll(this);
 			CategoryEnabled.Toggled += OnCategoryToggled;
 			Container.ItemRectChanged += OnContainerResized;
+			if (Pack != null && Source != null) {
+				CategoryEnabled.SetPressedNoSignal(Source.IsEnabledIn(Pack));
+			}
 		}
 
 		private void OnContainerResized() {
 			CustomMinimumSize = Container.Size;
-			CustomMaximumSize = Container.Size;
+			CustomMaximumSize = new Vector2(-1, Container.Size.Y);
 		}
 
 		private void OnCategoryToggled(bool toggledOn) {
@@ -61,6 +64,15 @@ namespace SBModManager.GUI {
 		public void AssignModpack(Modpack modpack, ModSource source) {
 			Pack = modpack;
 			Source = source;
+			if (IsNodeReady()) {
+				AssignModpackImpl(modpack, source);
+			}
+		}
+
+		private void AssignModpackImpl(Modpack modpack, ModSource source) {
+			Pack = modpack;
+			Source = source;
+			CategoryEnabled.SetPressedNoSignal(source.IsEnabledIn(modpack));
 		}
 	}
 }

@@ -40,6 +40,7 @@ namespace SBModManager.GUI {
 		/// </summary>
 		/// <param name="sbString"></param>
 		/// <returns></returns>
+		[NoDiscard]
 		public static string ShittyStarboundMarkupToBBCode(string sbString) {
 			sbString = SBHexColorRegex().Replace(sbString, delegate (Match match) {
 				if (match.Success) {
@@ -68,6 +69,7 @@ namespace SBModManager.GUI {
 		/// </remarks>
 		/// <param name="bytes"></param>
 		/// <returns></returns>
+		[NoDiscard]
 		public static string ToLargestSIUnitByteSize(ulong bytes) {
 			string bytesText;
 			if (bytes >= 1_000_000_000_000) {
@@ -97,6 +99,7 @@ namespace SBModManager.GUI {
 		/// </remarks>
 		/// <param name="bytes"></param>
 		/// <returns></returns>
+		[NoDiscard]
 		public static string ToLargestIECUnitByteSize(ulong bytes) {
 			string bytesText;
 			if (bytes >= (1UL << 40)) {
@@ -113,7 +116,7 @@ namespace SBModManager.GUI {
 			return bytesText;
 		}
 
-		[GeneratedRegex(@"#\^([a-fA-F0-9]{3}|[a-fA-F0-9]{4}|[a-fA-F0-9]{6}|[a-fA-F0-9]{8});")]
+		[GeneratedRegex(@"\^#([a-fA-F0-9]{3}|[a-fA-F0-9]{4}|[a-fA-F0-9]{6}|[a-fA-F0-9]{8});")]
 		private static partial Regex SBHexColorRegex();
 	}
 }

@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using System.Text.RegularExpressions;
 
 using SBModManager.Attributes;
 using SBModManager.ModInstances;
+using SBModManager.SteamInterop;
 
 namespace SBModManager.GUI {
 
@@ -39,7 +41,7 @@ namespace SBModManager.GUI {
 
 		public override void _Ready() {
 			ImportAttribute.ImportAll(this);
-			if (Pack != null && Mod != null) AssignModpackRoutine(Pack, Mod);
+			if (Pack != null && Mod != null) AssignModRoutine(Pack, Mod);
 
 			EnableMod.Toggled += OnEnableModToggled;
 		}
@@ -53,18 +55,18 @@ namespace SBModManager.GUI {
 			Pack = pack;
 			Mod = mod;
 			if (!IsNodeReady()) return;
-			AssignModpackRoutine(pack, mod);
+			AssignModRoutine(pack, mod);
 		}
 
-		private void AssignModpackRoutine(Modpack pack, ModArchive mod) {
+		private void AssignModRoutine(Modpack pack, ModArchive mod) {
 			Pack = pack;
 			Mod = mod;
 			EnableMod.Disabled = !mod.IsExclusive;
-			//EnableMod.SetPressedNoSignal()
+			EnableMod.SetPressedNoSignal(mod.Owner.IsEnabledIn(pack));
 			ModIcon.Texture = mod.Metadata.PreviewImage;
 			
 			if (EnableMod.Disabled) {
-				EnableMod.TooltipText = "This mod is part of a folder which contains multiple mods at once.\n\nTypically, modders do this if the groups mods [i]must[/i] be together. To turn off this mod, you must disable the entire category.";
+				EnableMod.TooltipText = "You can't disable this mod because it's part of a mod group.\n\nModders typically group their own mods together like this when the mods must be together by design.";
 			} else {
 				EnableMod.TooltipText = string.Empty;
 			}
@@ -76,18 +78,24 @@ namespace SBModManager.GUI {
 			if (!string.IsNullOrWhiteSpace(author)) {
 				ModNameAndAuthor.Clear();
 				ModNameAndAuthor.PushFontSize(16);
+				ModNameAndAuthor.PushContext();
 				ModNameAndAuthor.AppendText(FormatTools.ShittyStarboundMarkupToBBCode(friendlyName.Replace("\n", null).Replace("\r", null)));
+				ModNameAndAuthor.PopContext();
 				ModNameAndAuthor.Pop();
 				ModNameAndAuthor.PushFontSize(10);
 				ModNameAndAuthor.AppendText("\nby ");
 				ModNameAndAuthor.PushColor(Colors.MediumSeaGreen);
+				ModNameAndAuthor.PushContext();
 				ModNameAndAuthor.AppendText(FormatTools.ShittyStarboundMarkupToBBCode(author.Replace("\n", null).Replace("\r", null)));
+				ModNameAndAuthor.PopContext();
 				ModNameAndAuthor.Pop();
 				ModNameAndAuthor.AppendText(" - Hover for more information.");
 				ModNameAndAuthor.Pop();
 			} else {
 				ModNameAndAuthor.Clear();
+				ModNameAndAuthor.PushContext();
 				ModNameAndAuthor.AppendText(FormatTools.ShittyStarboundMarkupToBBCode(friendlyName.Replace("\n", null).Replace("\r", null)));
+				ModNameAndAuthor.PopContext();
 				ModNameAndAuthor.PushFontSize(10);
 				ModNameAndAuthor.AppendText("\nHover for more information.");
 				ModNameAndAuthor.Pop();
@@ -96,7 +104,9 @@ namespace SBModManager.GUI {
 				ModVersionAndSize.Clear();
 				ModVersionAndSize.AppendText("Version ");
 				ModVersionAndSize.PushColor(Colors.MediumSeaGreen);
+				ModNameAndAuthor.PushContext();
 				ModVersionAndSize.AppendText(FormatTools.ShittyStarboundMarkupToBBCode(version.Replace("\n", null).Replace("\r", null)));
+				ModNameAndAuthor.PopContext();
 				ModVersionAndSize.Pop();
 				ModVersionAndSize.AppendText("\nSize: ");
 				ModVersionAndSize.PushColor(Colors.Gray);
@@ -113,19 +123,78 @@ namespace SBModManager.GUI {
 				ModVersionAndSize.Pop();
 			}
 
-			ModNameAndAuthor.TooltipText = string.Empty;
+			ModNameAndAuthor.TooltipText = "[font_size=10][color=#aaa][i]Use Page Up and Page Down to scroll...[/i][/color]\n\n[/font_size]";
 			if (mod.IsDirectory) {
 				Color = Colors.Wheat;
-				ModNameAndAuthor.TooltipText = "[color=wheat]Unpacked mod![/color] This mod may take longer to load.\n\n";
+				ModNameAndAuthor.TooltipText += "[color=wheat]Unpacked mod![/color] This mod may take longer to load.\n\n";
 			}
 
-			string description = mod.Metadata.Description;
-			if (string.IsNullOrWhiteSpace(description)) {
-				ModNameAndAuthor.TooltipText += "[i]No description was provided for this mod.[/i]";
-			} else {
-				ModNameAndAuthor.TooltipText += FormatTools.ShittyStarboundMarkupToBBCode(description);
+			string? description = mod.Metadata.SBMMFixedDescription;
+			if (description == null) {
+				if (!string.IsNullOrWhiteSpace(mod.Metadata.Description)) {
+					description = ReparseStarboundIntoBBCode(mod.Metadata.Description);
+				} else {
+					description = "[i]No description was provided for this mod.[/i]";
+				}
+				mod.Metadata.SBMMFixedDescription = description;
 			}
+			ModNameAndAuthor.TooltipText += description;
 		}
 
+		/// <summary>
+		/// I'm so sorry for the bullshit you're about to lay your eyes upon.
+		/// </summary>
+		/// <param name="sbOrWorkshopDesc"></param>
+		/// <returns></returns>
+		private static string ReparseStarboundIntoBBCode(string sbOrWorkshopDesc) {
+			// Starbound markup:
+			sbOrWorkshopDesc = FormatTools.ShittyStarboundMarkupToBBCode(sbOrWorkshopDesc);
+
+			// Because some people like to use all caps bbcode...
+			sbOrWorkshopDesc = sbOrWorkshopDesc.Replace("[B]", "[b]", StringComparison.OrdinalIgnoreCase).Replace("[/B]", "[/b]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[I]", "[i]", StringComparison.OrdinalIgnoreCase).Replace("[/I]", "[/i]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[U]", "[u]", StringComparison.OrdinalIgnoreCase).Replace("[/U]", "[/u]", StringComparison.OrdinalIgnoreCase)
+												// .Replace("[IMG]", "[img]", StringComparison.OrdinalIgnoreCase).Replace("[/IMG]", "[/img]", StringComparison.OrdinalIgnoreCase)
+												// .Replace("[URL]", "[url]", StringComparison.OrdinalIgnoreCase).Replace("[/URL]", "[/url]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[STRIKE]", "[s]", StringComparison.OrdinalIgnoreCase).Replace("[/STRIKE]", "[/s]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[LIST]", "[ul]", StringComparison.OrdinalIgnoreCase).Replace("[/LIST]", "[/ul]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[OLIST]", "[ol]", StringComparison.OrdinalIgnoreCase).Replace("[/OLIST]", "[/ol]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[*]", null, StringComparison.OrdinalIgnoreCase) // Used in lists
+												.Replace("[/HR]", null, StringComparison.OrdinalIgnoreCase) // Godot doesn't use a closing tag.
+												.Replace("[LI]", null, StringComparison.OrdinalIgnoreCase).Replace("[/LI]", null, StringComparison.OrdinalIgnoreCase);
+
+			// For URL and IMG:
+			sbOrWorkshopDesc = URLBBCodeResolver().Replace(sbOrWorkshopDesc, delegate (Match match) {
+				if (!match.Success) return match.Value;
+				if (match.Groups[0].Success) {
+					return $"[url={match.Groups[0].Value}]{match.Groups[1].Value}[/url]";
+				} else {
+					return $"[url]{match.Groups[1].Value}[/url]";
+				}
+			});
+			sbOrWorkshopDesc = IMGBBCodeResolver().Replace(sbOrWorkshopDesc, delegate (Match match) {
+				if (!match.Success) return match.Value;
+				// IMG has its first group set to a non-capturing group.
+				return $"[img]{match.Groups[0].Value}[/img]";
+			});
+
+			// Steam Workshop formatting:
+			sbOrWorkshopDesc = sbOrWorkshopDesc .Replace("[h1]", "[font_size=24]", StringComparison.OrdinalIgnoreCase).Replace("[/h1]", "[/font_size]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[h2]", "[font_size=20]", StringComparison.OrdinalIgnoreCase).Replace("[/h2]", "[/font_size]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[h3]", "[font_size=16]", StringComparison.OrdinalIgnoreCase).Replace("[/h3]", "[/font_size]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[h4]", "[font_size=14]", StringComparison.OrdinalIgnoreCase).Replace("[/h4]", "[/font_size]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[h5]", "[font_size=12]", StringComparison.OrdinalIgnoreCase).Replace("[/h5]", "[/font_size]", StringComparison.OrdinalIgnoreCase)
+												.Replace("[h6]", "[font_size=10]", StringComparison.OrdinalIgnoreCase).Replace("[/h6]", "[/font_size]", StringComparison.OrdinalIgnoreCase);
+
+			// Image Fixers
+			// The idea here is to create a dummy texture and then download it in the background.
+			return InlineThumbnailImageHelper.ReplaceImages(sbOrWorkshopDesc);
+		}
+
+		[GeneratedRegex(@"\[url(\=[^\]]+)?\]([^\[\]]+)\[\/url\]", RegexOptions.IgnoreCase)]
+		private static partial Regex URLBBCodeResolver();
+
+		[GeneratedRegex(@"\[img(?:\=[^\]]+)?\]([^\[\]]+)\[\/img\]", RegexOptions.IgnoreCase)]
+		private static partial Regex IMGBBCodeResolver();
 	}
 }

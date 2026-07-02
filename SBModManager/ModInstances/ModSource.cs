@@ -75,6 +75,18 @@ namespace SBModManager.ModInstances {
 			PersistentName = name;
 		}
 
+		/// <summary>
+		/// Determines if this source of (a) mod(s) is enabled in the provided <paramref name="modpack"/>.
+		/// </summary>
+		/// <param name="modpack"></param>
+		/// <returns></returns>
+		public bool IsEnabledIn(Modpack modpack) {
+			if (modpack.ModSources.TryGetValue(this, out bool enabled)) {
+				return enabled;
+			}
+			return false;
+		}
+
 		private ImmutableArray<ModArchive> CreateModList(string path, ulong workshopID) {
 			List<ModArchive> result = [];
 			foreach (string file in Directory.GetFiles(path)) {

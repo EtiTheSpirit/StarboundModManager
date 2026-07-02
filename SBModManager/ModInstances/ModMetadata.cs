@@ -52,6 +52,12 @@ namespace SBModManager.ModInstances {
 		public string Description { get; }
 
 		/// <summary>
+		/// A copy of the description that has been "fixed" by SBMM, which is where a lot of parsing is done to
+		/// transform it from Starbound markup and Steam Workshop markup into Godot markup.
+		/// </summary>
+		public string? SBMMFixedDescription { get; set; }
+
+		/// <summary>
 		/// Corresponds to the "author" field.
 		/// </summary>
 		public string Author { get; }

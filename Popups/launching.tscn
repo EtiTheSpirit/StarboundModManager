@@ -1,5 +1,7 @@
 [gd_scene format=3 uid="uid://8wdij3i1bfq1"]
 
+[ext_resource type="Script" uid="uid://bl6vkd4uvxyt1" path="res://SBModManager/Menus/Windows/LaunchingWindow.cs" id="1_x2ejr"]
+
 [node name="Launching" type="Window" unique_id=779850626]
 oversampling_override = 1.0
 title = "Launching..."
@@ -8,8 +10,8 @@ size = Vector2i(400, 200)
 transient = true
 exclusive = true
 unresizable = true
-always_on_top = true
 sharp_corners = true
+script = ExtResource("1_x2ejr")
 
 [node name="Panel" type="Panel" parent="." unique_id=2097359132]
 anchors_preset = 15
@@ -35,7 +37,7 @@ layout_mode = 2
 theme_override_constants/separation = 32
 alignment = 1
 
-[node name="LabelStatus" type="Label" parent="Panel/MarginContainer/VBoxContainer" unique_id=350446095]
+[node name="StatusLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer" unique_id=350446095]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
