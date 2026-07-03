@@ -1,0 +1,33 @@
+name: "Report a Problem"
+description: "Is the mod manager not doing something properly?"
+labels: ["bug"]
+type: "Bug Report"
+body:
+  - type: markdown
+    attributes:
+      value: "Alright, let's see what we have to work with here..."
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: "What happened?"
+      description: "Explain what happened, and if possible, what you think should have happened if it worked properly."
+      placeholder: "While I was ... "
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: "How can I cause it to happen on my end?"
+      description: "Give a list of step by step instructions. If you can show me how to cause the bug, I can fix it *way* faster."
+      placeholder: |
+        1. Visit the large man with orange clothes
+        2. Ask for Lamp Oil, Rope, and/or Bombs
+        3. ???
+        4. L + Get Richer + No Dinner
+    validations:
+      required: true
+  - type: textarea
+    id: xtra
+    attributes:
+      label: "More Information"
+      description: "Optional. If you have anything else to add, enter it here."

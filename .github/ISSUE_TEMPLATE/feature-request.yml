@@ -1,0 +1,56 @@
+name: "Request a Change or Upgrade"
+description: "Got something you want to see added? Find something annoying or hard to work with? Tell me all about it here!"
+type: "Feature Request"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "So basically I got this new anime plot ..."
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Efficiency Check
+      description: Before you continue, let's verify some things.
+      options:
+        - label: I made sure nobody else submitted this issue (if they did, go comment or upvote it).
+          required: true
+        - label: This isn't on the [planned features list](https://github.com/XansWorkshop/StarboundModManager/blob/master/WISHLIST.md).
+          required: true
+  - type: textarea
+    id: the-request
+    attributes:
+      label: "What's on your mind?"
+      description: "For bonus points, *try to address a problem if you can.* A feature request which has an immediate purpose is a lot more powerful than a simple random thought."
+      placeholder: "Right now, I find it too hard / too annoying / too confusing to ..."
+    validations:
+      required: true
+  - type: textarea
+    id: usage
+    attributes:
+      label: "How can people use this?"
+      description: "Optional. If your idea is particularly niche, try to further elaborate on why it's useful here. If you already cover your use case above, you don't have to fill this out."
+      placeholder: |
+        1. People can't resist the urge to instantly patch, bond, seal, and repair.
+        2. People can't live without its triple thick adhesive that virtually welds itself to the surface.
+        3. People are always shocked to realize that its powerful adhesive is so strong, it even works underwater.
+    validations:
+      required: false
+  - type: dropdown
+    id: importance
+    attributes:
+      label: "How important is this to you?"
+      description: "This helps to decide when it gets added relative to other features. Note that I always make the decision myself, this just gives me perspective."
+      options:
+      - "Minor"
+      - "Useful"
+      - "Very Important"
+      - "I can't live without it"
+    validations:
+      required: true
+  - type: textarea
+    id: xtra
+    attributes:
+      label: More Information
+      description: Optional. If you have anything else to add, enter it here.
+    validations:
+      required: false
