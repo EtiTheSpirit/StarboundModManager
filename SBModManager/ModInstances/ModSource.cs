@@ -98,7 +98,7 @@ namespace SBModManager.ModInstances {
 				if (hadMalformedHeader) continue;
 				if (data == null) continue;
 				if (!data.ContainsKey("name")) {
-					data["name"] = Path.GetFileNameWithoutExtension(file);
+					data["name"] = Path.GetFileName(file);
 				}
 				
 				result.Add(new ModArchive(this, file, new ModMetadata(data, workshopID)));
@@ -107,7 +107,7 @@ namespace SBModManager.ModInstances {
 				GDDictionary? data = MetadataReader.GetMetadataFromDirectory(new DirectoryInfo(directory));
 				if (data == null) continue;
 				if (!data.ContainsKey("name")) {
-					data["name"] = Path.GetFileNameWithoutExtension(directory);
+					data["name"] = Path.GetFileName(directory);
 				}
 				result.Add(new ModArchive(this, directory, new ModMetadata(data, workshopID)));
 			}

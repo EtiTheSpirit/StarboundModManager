@@ -322,37 +322,41 @@ namespace SBModManager.Menus.Windows {
 			try {
 				bool isDirectory = File.GetAttributes(pakOrFolderPath).HasFlag(FileAttributes.Directory);
 				GDDictionary? metadata = MetadataReader.ReadMetadataFromDisk(pakOrFolderPath);
-				string name = Path.ChangeExtension(Path.GetFileName(pakOrFolderPath), null);
+				string name = Path.GetFileName(pakOrFolderPath);
 				if (metadata != null) {
 					name = metadata.GetValueAsStringOrDefault("name", name);
 				}
+				if (!name.EndsWith(".pak")) {
+					name += ".pak";
+				}
 
 				string manualModsDir = Directories.GetLocalManualModCacheDirectory();
-				string sourceDirectory = Path2.Combine(manualModsDir, Path.ChangeExtension(name, null));
+				string sourceDirectory = Path2.Combine(manualModsDir, name);
 				string destination = Path2.Combine(sourceDirectory, name);
 
 				if (pakOrFolderPath == destination) {
 					// Imported directly from the local cache.
 					EditingModpack.ModSources.TryAdd(new ModSource(name), true);
-				}
-
-				try {
-					if (File.Exists(destination)) {
-						File.Delete(destination);
-					} else if (Directory.Exists(destination)) {
-						Directory.Delete(destination, true);
-					}
-				} catch (FileNotFoundException) {
-				} catch (DirectoryNotFoundException) {
-				}
-
-				if (isDirectory) {
-					Directories.CopyDirectory(pakOrFolderPath, destination, CancellationToken.None);
 				} else {
-					Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-					File.Copy(pakOrFolderPath, destination);
+
+					try {
+						if (File.Exists(destination)) {
+							File.Delete(destination);
+						} else if (Directory.Exists(destination)) {
+							Directory.Delete(destination, true);
+						}
+					} catch (FileNotFoundException) {
+					} catch (DirectoryNotFoundException) {
+					}
+
+					if (isDirectory) {
+						Directories.CopyDirectory(pakOrFolderPath, destination, CancellationToken.None);
+					} else {
+						Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+						File.Copy(pakOrFolderPath, destination);
+					}
+					EditingModpack.ModSources.TryAdd(new ModSource(name), true);
 				}
-				EditingModpack.ModSources.TryAdd(new ModSource(name), true);
 				ViewModListPanel.RebuildList();
 				OnCloseRequested();
 			} catch (Exception exc) {
