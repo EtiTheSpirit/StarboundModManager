@@ -53,6 +53,10 @@ namespace SBModManager.SteamInterop {
 					string path = libraryFolder.GetValue("path");
 					VDFObject apps = libraryFolder.GetChild("apps");
 					if (apps.Values.ContainsKey("211820")) {
+						if (!Directory.Exists(path)) {
+							throw new InvalidOperationException($"Your Steam library folders are corrupted (Steam says you have one at {path} but that folder doesn't exist).");
+						}
+
 						return Path2.Combine(path, "steamapps");
 					}
 				}
