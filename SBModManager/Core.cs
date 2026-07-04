@@ -247,6 +247,7 @@ namespace SBModManager {
 
 			if (_currentSelectedModpack != null) {
 				Modpack dupe = _currentSelectedModpack.Duplicate();
+				dupe.Name = dupe.Name + " (Copy)";
 				CurrentModpacks.Add(dupe);
 				ModpackEntryElement button = CreateButtonForModpack(dupe);
 				SetSelection(dupe, button);
@@ -309,6 +310,8 @@ namespace SBModManager {
 						.ContinueWith(delegate {
 							_starbound = null;
 							ShowButtons();
+							RefreshModpackDisplay(modpack); // For the last played date
+							
 						}, TaskScheduler.FromCurrentSynchronizationContext());
 		}
 

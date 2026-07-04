@@ -52,6 +52,11 @@ namespace SBModManager.ModInstances {
 		} = "";
 
 		/// <summary>
+		/// The last time this modpack was launched.
+		/// </summary>
+		public DateTime LastPlayed { get; set; }
+
+		/// <summary>
 		/// The GUID of this modpack. This does not change.
 		/// </summary>
 		public Guid ID { get; }
@@ -95,6 +100,9 @@ namespace SBModManager.ModInstances {
 				Creator = data.GetValueAsStringOrDefault("creator", ""),
 				Description = data.GetValueAsStringOrDefault("description", "")
 			};
+			if (data.TryGetValue("last_played", out Variant lastPlayedVar) && (lastPlayedVar.VariantType == Variant.Type.Int || lastPlayedVar.VariantType == Variant.Type.Float)) {
+				pack.LastPlayed = DateTime.FromBinary((long)lastPlayedVar);
+			}
 
 			GDArray modSources = (GDArray)data["mod_sources"];
 			HashSet<long> alreadyGotWorkshop = [];
@@ -151,6 +159,7 @@ namespace SBModManager.ModInstances {
 			data["name"] = Name;
 			data["creator"] = Creator;
 			data["description"] = Description;
+			data["last_played"] = LastPlayed.ToBinary();
 
 			// This is an array because of a possible edge case where a mod's name is just numbers.
 			GDArray modSources = [];
@@ -185,7 +194,8 @@ namespace SBModManager.ModInstances {
 			Modpack dupe = new Modpack {
 				Name = Name,
 				Creator = Creator,
-				Description = Description
+				Description = Description,
+				// Do not copy LastPlayed, since I want the default state of a duplicate pack to be "never played" (I mean, you haven't).
 			};
 			foreach (KeyValuePair<ModSource, bool> kvp in ModSources) {
 				dupe.ModSources[kvp.Key] = kvp.Value;

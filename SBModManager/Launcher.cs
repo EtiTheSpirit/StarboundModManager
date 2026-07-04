@@ -30,6 +30,7 @@ namespace SBModManager {
 
 			progressWindow.SetStatus("Preparing launch configuration...\nIf any mods are missing, they will be downloaded during this step.");
 			progressWindow.SetProgress(float.NaN);
+			modpack.LastPlayed = DateTime.Now;
 			string sbinitConfig = await modpack.SaveAndUpdateInitAsync(cancellationToken);
 
 			progressWindow.SetStatus("Launching Starbound...");

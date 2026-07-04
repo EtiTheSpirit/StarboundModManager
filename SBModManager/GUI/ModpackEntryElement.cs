@@ -79,12 +79,13 @@ namespace SBModManager.GUI {
 			// Pack always has a name. It's forced.
 			bool hasCreator = !string.IsNullOrWhiteSpace(pack.Creator);
 			bool hasDescription = !string.IsNullOrWhiteSpace(pack.Description);
+			string lastPlayed = pack.LastPlayed == default ? "Never" : pack.LastPlayed.ToString();
 			if (hasCreator && hasDescription) {
-				ModpackIcon.TooltipText = $"{pack.Name} by {pack.Creator}\n\n{pack.Description}";
+				ModpackIcon.TooltipText = $"{pack.Name} by {pack.Creator}\nLast played: {lastPlayed}\n\n{pack.Description}";
 			} else if (hasCreator) {
-				ModpackIcon.TooltipText = $"{pack.Name} by {pack.Creator}";
+				ModpackIcon.TooltipText = $"{pack.Name} by {pack.Creator}\nLast played: {lastPlayed}";
 			} else if (hasDescription) {
-				ModpackIcon.TooltipText = $"{pack.Name}\n\n{pack.Description}";
+				ModpackIcon.TooltipText = $"{pack.Name}\nLast played: {lastPlayed}\n\n{pack.Description}";
 			} else {
 				ModpackIcon.TooltipText = pack.Name;
 			}
