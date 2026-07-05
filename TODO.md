@@ -12,6 +12,7 @@ This is a collection of things I'd like to do in the future.
 3. Add a right click menu to the actual panels in the modpack list.
 4. Clean up the UI. It looks like garbage lol.
 5. Improve memory usage, loading images from workshop descriptions is cool but it also consumes a lot of memory.
+6. Add the ability to detect updates to Workshop mods and prompt their installation.
 
 ## UX
 
