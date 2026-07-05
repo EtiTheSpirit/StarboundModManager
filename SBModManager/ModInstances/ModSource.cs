@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 using SBModManager.Other;
 
@@ -15,6 +17,10 @@ namespace SBModManager.ModInstances {
 	/// indeed one instance of this type can be shared across many modpacks. This just represents the mods, and that's it.
 	/// </remarks>
 	public class ModSource : IEquatable<ModSource>, IComparable<ModSource> {
+
+		private static readonly Dictionary<string, ModSource> INTERNED_MOD_SOURCES = [];
+
+		private static readonly Lock INTERN_LOCK = new Lock();
 
 		/// <summary>
 		/// If <see langword="true"/>, this is a workshop mod (and will thus use the workshop catalog folder).
@@ -49,11 +55,45 @@ namespace SBModManager.ModInstances {
 		/// </summary>
 		public string PersistentName { get; }
 
+		public long LastUpdateEpoch { get; }
+
+		/// <summary>
+		/// Returns a <see cref="ModSource"/> for the provided workshop ID. The instance is shared globally.
+		/// </summary>
+		/// <param name="workshopID"></param>
+		/// <returns></returns>
+		public static ModSource GetOrCreateSource(long workshopID) {
+			string absPath = Path2.Combine(Directories.GetLocalWorkshopCacheDirectory(), workshopID.ToString());
+			lock (INTERN_LOCK) {
+				if (!INTERNED_MOD_SOURCES.TryGetValue(absPath, out ModSource? existing)) {
+					existing = new ModSource(workshopID);
+					INTERNED_MOD_SOURCES[absPath] = existing;
+				}
+				return existing;
+			}
+		}
+
+		/// <summary>
+		/// Returns a <see cref="ModSource"/> for the provided workshop ID. The instance is shared globally.
+		/// </summary>
+		/// <param name="workshopID"></param>
+		/// <returns></returns>
+		public static ModSource GetOrCreateSource(string name) {
+			string absPath = Path2.Combine(Directories.GetLocalManualModCacheDirectory(), name);
+			lock (INTERN_LOCK) {
+				if (!INTERNED_MOD_SOURCES.TryGetValue(absPath, out ModSource? existing)) {
+					existing = new ModSource(name);
+					INTERNED_MOD_SOURCES[absPath] = existing;
+				}
+				return existing;
+			}
+		}
+
 		/// <summary>
 		/// Create a mod source from a workshop mod. This loads from the workshop catalog.
 		/// </summary>
 		/// <param name="workshopID"></param>
-		public ModSource(long workshopID) {
+		private ModSource(long workshopID) {
 			AbsolutePath = Path2.Combine(Directories.GetLocalWorkshopCacheDirectory(), workshopID.ToString());
 			if (!Directory.Exists(AbsolutePath)) throw new DirectoryNotFoundException($"No directory exists at {AbsolutePath}");
 
@@ -67,7 +107,7 @@ namespace SBModManager.ModInstances {
 		/// Create a mod source from a name. This loads from the standard catalog.
 		/// </summary>
 		/// <param name="name"></param>
-		public ModSource(string name) {
+		private ModSource(string name) {
 			if (name.ContainsAny(Path.GetInvalidFileNameChars())) throw new InvalidOperationException("The provided name is not a valid file name.");
 
 			AbsolutePath = Path2.Combine(Directories.GetLocalManualModCacheDirectory(), name);

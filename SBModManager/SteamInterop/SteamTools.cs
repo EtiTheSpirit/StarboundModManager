@@ -1,13 +1,20 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using SBModManager.Other;
+using Microsoft.Win32;
 
-using FileAccess = System.IO.FileAccess;
+using SBModManager.Menus.Windows;
+using SBModManager.Other;
+using SBModManager.SteamInterop.Web;
 
 namespace SBModManager.SteamInterop {
 
@@ -16,6 +23,83 @@ namespace SBModManager.SteamInterop {
 	/// </summary>
 	public static class SteamTools {
 
+		/// <summary>
+		/// Sent via HTTP POST. Form-Body Parameters:
+		/// <list type="table">
+		/// <item>
+		/// <term><c>collectioncount</c></term>
+		/// <description>Integer as string. Amount of collections being requested.</description>
+		/// </item>
+		/// 
+		/// <item>
+		/// <term><c>publishedfileids[<em>n</em>]</c></term>
+		/// <description>Integer as string. ID of a collection.</description>
+		/// </item>
+		/// 
+		/// </list>
+		/// <para/>
+		/// Response JSON example:
+		/// <code>
+		/// {
+		///		"response" : {
+		///			"result" : (see <see cref="EResult"/>)
+		///			"resultcount" : n,
+		///			"collectiondetails" : [
+		///				{
+		///					"publishedfileid" : "123456789",
+		///					"sortorder" : "(integer as string)",
+		///					"filetype" : (see <see cref="EWorkshopFileType"/>)
+		///				},
+		///				...
+		///			]
+		///		}
+		/// }
+		/// </code>
+		/// </summary>
+		const string STEAM_API_GET_COLLECTION_DETAILS = "https://api.steampowered.com/ISteamRemoteStorage/GetCollectionDetails/v1/";
+
+		/// <summary>
+		/// Sent via HTTP POST. Form-Body Parameters:
+		/// <list type="table">
+		/// <item>
+		/// <term><c>itemcount</c></term>
+		/// <description>Integer as string. Amount of items being requested.</description>
+		/// </item>
+		/// 
+		/// <item>
+		/// <term><c>publishedfileids[<em>n</em>]</c></term>
+		/// <description>Integer as string. ID of a workshop item.</description>
+		/// </item>
+		/// 
+		/// </list>
+		/// <para/>
+		/// Response JSON example:
+		/// <code>
+		/// {
+		///		"response" : {
+		///			"result" : (see <see cref="EResult"/>)
+		///			"resultcount" : n,
+		///			"publishedfiledetails" : [
+		///				{
+		///					"publishedfileid" : "123456789",
+		///					"result" : (see <see cref="EResult"/>),
+		///					// A bunch of other shit. title, description, subscriptions, favorited (int), lifetime_subscriptions, lifetime_favorited, views, tags [{"tag":""},...]
+		///					"time_updated" : "(integer as string)" // This one is important to me
+		///				},
+		///				...
+		///			]
+		///		}
+		/// }
+		/// </code>
+		/// </summary>
+		const string STEAM_API_GET_PUBLISHED_FILE_DETAILS = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
+
+		#region Starbound Directories
+
+		/// <summary>
+		/// Uses <see cref="GetSteamappsContainingStarbound"/> and adds <c>common/Starbound</c> to the path.
+		/// </summary>
+		/// <returns></returns>
 		public static string? GetStarboundDirectory() {
 			string? steamapps = GetSteamappsContainingStarbound();
 			if (steamapps == null) return null;
@@ -36,7 +120,9 @@ namespace SBModManager.SteamInterop {
 				string os = OS.GetName();
 				VDFObject? vdf;
 				if (os == "Windows") {
-					vdf = VDFReader.TryReadVDF(@"C:\Program Files (x86)\Steam\steamapps\libraryfolders.vdf");
+					#pragma warning disable CA1416 // We checked for Windows just above!
+					string steamInstallLocation = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam", "InstallPath", null) as string ?? @"C:\Program Files (x86)\Steam";
+					vdf = VDFReader.TryReadVDF(Path.Combine(steamInstallLocation, "steamapps", "libraryfolders.vdf"));
 				} else if (os == "macOS") {
 					vdf = VDFReader.TryReadVDF("~/Library/Application Support/Steam/steamapps/libraryfolders.vdf");
 				} else if (os == "Linux") {
@@ -64,108 +150,224 @@ namespace SBModManager.SteamInterop {
 			return null;
 		}
 
+		#endregion
+
+		#region Download Agnostic Workshop
+
+		/// <summary>
+		/// Downloads a single mod, or an entire collection recursively. Returns the list of successful mod IDs.
+		/// </summary>
+		/// <param name="id"></param>
+		/// <param name="skipIfInstalled"></param>
+		/// <param name="progressWindow"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static async Task<long[]> DownloadWorkshopModOrCollectionAsync(long id, bool skipIfInstalled, GeneralProgressWindow? progressWindow, CancellationToken cancellationToken) {
+			long[] mods;
+			try {
+				mods = await GetAllModsInCollectionAsync(id, true, cancellationToken);
+				if (mods.Length == 0) {
+					mods = [id];
+				}
+			} catch (KeyNotFoundException) {
+				mods = [id];
+			}
+
+			cancellationToken.ThrowIfCancellationRequested();
+			long[] failed = await DownloadWorkshopModsAsync(mods, skipIfInstalled, progressWindow, cancellationToken);
+
+			HashSet<long> modsAsSet = mods.ToHashSet();
+			for (int i = 0; i < failed.Length; i++) {
+				modsAsSet.Remove(failed[i]);
+			}
+
+			return modsAsSet.ToArray();
+		}
+
+		#endregion
+
+		#region Download From File ID
+
 		/// <summary>
 		/// Creates a series of commands which are executed by SteamCMD to download one or more workshop mods to disk.
-		/// Returns a list of IDs that failed to load.
+		/// Returns a list of IDs that failed to load. This does not support collection IDs; use <see cref="DownloadEntireCollectionAsync(long, bool, bool, GeneralProgressWindow?, CancellationToken)"/>
+		/// or use 
 		/// </summary>
 		/// <param name="ids">An array of workshop item IDs to download.</param>
 		/// <param name="skipIfInstalled">If true, workshop items that appear to be already installed are skipped.</param>
+		/// <param name="progressWindow">A progress window to display progress to the user.</param>
 		/// <param name="cancellationToken">Can be used to cancel the process.</param>
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="OperationCanceledException"></exception>
-		public static async Task<long[]> DownloadWorkshopModsAsync(long[] ids, bool skipIfInstalled, CancellationToken cancellationToken) {
+		public static async Task<long[]> DownloadWorkshopModsAsync(long[] ids, bool skipIfInstalled, GeneralProgressWindow? progressWindow, CancellationToken cancellationToken) {
 			if (ids.Length == 0) return [];
 
-			string workshopDir = Directories.GetLocalWorkshopCacheDirectory();
-			string scriptDir = Directories.GetSteamCMDTempScriptDirectory();
-			string scriptFile = Path2.Combine(scriptDir, Path.GetRandomFileName() + ".txt");
-			Directory.CreateDirectory(workshopDir);
-			Directory.CreateDirectory(scriptDir);
+			string sbmmWorkshopStorageDirectory = Directories.GetLocalWorkshopCacheDirectory();
+			string sbmmSteamCMDScriptDirectory = Directories.GetSteamCMDTempScriptDirectory();
+			string steamCmdStagingDirectory = Path2.Combine(Directories.GetSteamCMDInstallationDirectory(), "steamapps", "content", "app_211820");
+			Directory.CreateDirectory(sbmmWorkshopStorageDirectory);
+			Directory.CreateDirectory(sbmmSteamCMDScriptDirectory);
 
-			string baseInstallPath = Path2.Combine(Directories.GetSteamCMDInstallationDirectory(), "steamapps", "content", "app_211820");
+			// To begin, we need to generate a script.
+			// FIXME: Figure out why I can't use stdin to send commands to SteamCMD.
+			// No matter how hard I try, it just will not accept commands.
+			// I contemplated on reverse engineering SteamCMD to extract just the download_item function, to reimplement it myself,
+			// but I'm not sure I want to spin up IDA and do that sort of thing for such a simple case. It would remove a dependency
+			// though. So maybe.
 
-			StringBuilder script = new StringBuilder();
-			script.AppendLine("@ShutdownOnFailedCommand 0");
-			script.AppendLine("login anonymous");
-			bool hadAny = false;
+			List<long> idsList = ids.ToList();
+			idsList.Sort();
+			if (skipIfInstalled) {
+				PreprocessWorkshopDownloadList(idsList);
+			}
+			string? installScriptPath = AssembleWorkshopDownloadList(idsList);
+			if (installScriptPath == null) return [];
+			try {
+				float totalToDownload = idsList.Count;
+				float downloaded = 0;
+				progressWindow?.SetStatus("Downloading...", "Downloading Workshop Mod(s)");
+				progressWindow?.SetProgress(0.00f);
 
-			HashSet<long> unnecessaryIDs = [];
-			int tries = 2;
-			while (tries-- > 0) {
-				for (int i = 0; i < ids.Length; i++) {
+				using FileSystemWatcher steamCmdInstallationWatcher = new FileSystemWatcher {
+					Path = steamCmdStagingDirectory,
+					NotifyFilter = NotifyFilters.DirectoryName,
+					EnableRaisingEvents = true
+				};
+				steamCmdInstallationWatcher.Created += delegate (object sender, FileSystemEventArgs e) {
+					if (e.Name != null && e.Name.StartsWith("item_") && long.TryParse(e.Name[5..], out long workshopID) && idsList.BinarySearch(workshopID) >= 0) {
+						downloaded++;
+						progressWindow?.SetProgress(downloaded / totalToDownload);
+					}
+				};
+
+				await SteamCMD.RunSteamCMDScriptAsync(installScriptPath, cancellationToken);
+
+				List<long> seeminglyMissing = [];
+				for (int i = 0; i < idsList.Count; i++) {
 					cancellationToken.ThrowIfCancellationRequested();
-
-					if (skipIfInstalled) {
-						string itemPath = Path2.Combine(workshopDir, ids[i].ToString());
-						if (Directory.Exists(itemPath)) {
-							unnecessaryIDs.Add(ids[i]);
-							continue;
-						}
-
-						string failedInstallPath = Path2.Combine(baseInstallPath, $"item_{ids[i]}");
-						if (Directory.Exists(failedInstallPath)) {
-							// If we make it here, there's another problem: The installation failed and it wasn't copied.
-							// Copy it over then add it to the ignore list.
-							string destination = Path2.Combine(workshopDir, ids[i].ToString());
-							if (Directory.Exists(destination)) {
-								try {
-									Directory.Delete(destination, true);
-								} catch (DirectoryNotFoundException) { }
-							}
-							Directory.Move(failedInstallPath, destination);
-							unnecessaryIDs.Add(ids[i]);
-							continue;
-						}
+					string itemPath = Path2.Combine(steamCmdStagingDirectory, $"item_{idsList[i]}");
+					string destination = Path2.Combine(sbmmWorkshopStorageDirectory, idsList[i].ToString());
+					if (Directory.Exists(destination)) {
+						try {
+							Directory.Delete(destination, true);
+						} catch (DirectoryNotFoundException) { }
 					}
-					if (unnecessaryIDs.Contains(ids[i])) continue;
-
-					script.AppendLine($"download_item 211820 {ids[i]}");
-					hadAny = true;
-				}
-				if (!hadAny) return [];
-
-				File.WriteAllText(scriptFile, script.ToString());
-				try {
-					await SteamCMD.RunSteamCMDScriptAsync(scriptFile, cancellationToken);
-
-					List<long> seeminglyMissing = [];
-					for (int i = 0; i < ids.Length; i++) {
-						cancellationToken.ThrowIfCancellationRequested();
-						if (unnecessaryIDs.Contains(ids[i])) continue;
-
-						string itemPath = Path2.Combine(baseInstallPath, $"item_{ids[i]}");
-						string destination = Path2.Combine(workshopDir, ids[i].ToString());
-						if (Directory.Exists(destination)) {
-							try {
-								Directory.Delete(destination, true);
-							} catch (DirectoryNotFoundException) { }
-						}
-						if (!Directory.Exists(itemPath)) {
-							seeminglyMissing.Add(ids[i]);
-						} else {
-							Directory.Move(itemPath, destination);
-						}
-					}
-
-					if (seeminglyMissing.Count == 0) {
-						ids = [];
-						break;
+					if (!Directory.Exists(itemPath)) {
+						seeminglyMissing.Add(idsList[i]);
 					} else {
-						ids = seeminglyMissing.ToArray();
+						Directory.Move(itemPath, destination);
 					}
-				} finally {
-					File.Delete(scriptFile);
 				}
+
+				// Reuse IDs
+				if (seeminglyMissing.Count == 0) {
+					ids = [];
+				} else {
+					ids = seeminglyMissing.ToArray();
+				}
+			} finally {
+				File.Delete(installScriptPath);
 			}
 
 			if (ids.Length > 0) {
-				File.WriteAllText(Path2.Combine(workshopDir, "failedworkshop.txt"), string.Join('\n', ids));
+				File.WriteAllText(Path2.Combine(sbmmWorkshopStorageDirectory, "failedworkshop.txt"), string.Join('\n', ids));
 				OS.Alert($"{ids.Length} {(ids.Length == 1 ? "mod" : "mods")} failed to download (they are probably unlisted or private). The mods have been written to \"failedworkshop.txt\" in the mod_catalog_workshop directory.");
 				return ids;
 			}
 			return [];
 		}
+
+		/// <summary>
+		/// Preprocesses a list of workshop IDs to install. This modifies the input <paramref name="ids"/>.
+		/// If an ID is not installed, but is found in the staging directory of SteamCMD, it will be copied to the 
+		/// SBMM cache directory.
+		/// <para/>
+		/// This should only be used if the caller intends to skip IDs which are already downloaded.
+		/// </summary>
+		/// <param name="ids">The IDs to process.</param>
+		private static void PreprocessWorkshopDownloadList(List<long> ids) {
+			if (ids.Count == 0) return;
+			string sbmmWorkshopStorageDirectory = Directories.GetLocalWorkshopCacheDirectory();
+			string steamCmdStagingDirectory = Path2.Combine(Directories.GetSteamCMDInstallationDirectory(), "steamapps", "content", "app_211820");
+
+			for (int i = ids.Count - 1; i >= 0; i--) {
+				string idString = ids[i].ToString();
+				string itemPath = Path2.Combine(sbmmWorkshopStorageDirectory, idString);
+				if (Directory.Exists(itemPath)) {
+					ids.RemoveAt(i);
+					continue;
+				}
+
+				string existingStagedDirectory = Path2.Combine(steamCmdStagingDirectory, $"item_{idString}");
+				if (Directory.Exists(existingStagedDirectory)) {
+					// If we make it here, there's another problem: The installation failed and it wasn't copied.
+					// Copy it over then add it to the ignore list.
+					string destination = Path2.Combine(sbmmWorkshopStorageDirectory, idString);
+					if (Directory.Exists(destination)) {
+						try {
+							Directory.Delete(destination, true);
+						} catch (DirectoryNotFoundException) { }
+					}
+					Directory.Move(existingStagedDirectory, destination);
+					ids.RemoveAt(i);
+					continue;
+				}
+			}
+		}
+
+		/// <summary>
+		/// A subroutine which takes a list of IDs, which are assumed to have been filtered already, and generates an installation script.
+		/// This returns the file path to the script, or null if no IDs were added.
+		/// </summary>
+		/// <param name="ids">The list of workshop item IDs to download.</param>
+		private static string? AssembleWorkshopDownloadList(List<long> ids) {
+			if (ids.Count == 0) return null;
+
+			string sbmmWorkshopStorageDirectory = Directories.GetLocalWorkshopCacheDirectory();
+			string sbmmSteamCMDScriptDirectory = Directories.GetSteamCMDTempScriptDirectory();
+			string thisSteamCMDScript = Path2.Combine(sbmmSteamCMDScriptDirectory, Path.GetRandomFileName() + ".txt");
+			Directory.CreateDirectory(sbmmWorkshopStorageDirectory);
+			Directory.CreateDirectory(sbmmSteamCMDScriptDirectory);
+
+			StringBuilder script = new StringBuilder();
+			script.AppendLine("@ShutdownOnFailedCommand 0");
+			script.AppendLine("login anonymous");
+			foreach (long id in ids) {
+				script.AppendLine($"download_item 211820 {id}");
+			}
+			File.WriteAllText(thisSteamCMDScript, script.ToString());
+			return thisSteamCMDScript;
+		}
+
+		#endregion
+
+		#region Download from Collection ID
+
+		/// <summary>
+		/// Downloads every mod that is in a Steam Workshop Collection.
+		/// </summary>
+		/// <param name="collectionID">The collection to download from.</param>
+		/// <param name="skipIfInstalled">If true, workshop mods that are already installed are skipped.</param>
+		/// <param name="recursive">If <see langword="true"/>, any collections that are within this collection are also enumerated and downloaded.</param>
+		/// <param name="progressWindow">A progress window to display progress to the user.</param>
+		/// <param name="cancellationToken">Can be used to cancel the download.</param>
+		/// <returns></returns>
+		public static async Task DownloadEntireCollectionAsync(long collectionID, bool skipIfInstalled, bool recursive, GeneralProgressWindow? progressWindow, CancellationToken cancellationToken) {
+			progressWindow?.SetStatus("Gathering collection information...", "Downloading Workshop Mod(s)");
+			progressWindow?.SetProgress(float.NaN);
+
+			ConcurrentHashSet<long> items = [];
+			long[] tempArray = [collectionID];
+			await GetAllModsInCollectionAsync(tempArray, [], items, null, recursive, cancellationToken);
+			cancellationToken.ThrowIfCancellationRequested();
+
+			await DownloadWorkshopModsAsync(items.ToArray(), skipIfInstalled, progressWindow, cancellationToken);
+		}
+
+		#endregion
+
+		#region Copy Subscriptions
 
 		/// <summary>
 		/// Efficiency-promoting method that copies every current workshop subscription into the cache.
@@ -200,7 +402,7 @@ namespace SBModManager.SteamInterop {
 							} catch (DirectoryNotFoundException) { }
 						}
 
-						Directories.CopyDirectory(workshopSubdirectory, destination, cancellationToken);
+						Directories.CopyDirectoryOverwrite(workshopSubdirectory, destination, cancellationToken);
 						installed.Add(workshopID);
 					}
 				}
@@ -210,6 +412,291 @@ namespace SBModManager.SteamInterop {
 
 			return installed.ToArray();
 		}
+
+		#endregion
+
+		#region Get data of Collection IDs
+
+		/// <summary>
+		/// Returns a list of the workshop IDs of every mod in the provided <paramref name="collection"/>.
+		/// </summary>
+		/// <param name="collection">The collection to query.</param>
+		/// <param name="recursive">If true, collections within this collection will also be queried, and collections in those will be, so on.</param>
+		/// <param name="cancellationToken">Can be used to cancel the task.</param>
+		/// <returns></returns>
+		/// <exception cref="OperationCanceledException"></exception>
+		public static async Task<long[]> GetAllModsInCollectionAsync(long collection, bool recursive, CancellationToken cancellationToken) {
+			ConcurrentHashSet<long> itemIDs = [];
+			long[] buffer = [collection];
+			await GetAllModsInCollectionAsync(buffer, [], itemIDs, null, recursive, cancellationToken);
+			return itemIDs.ToArray();
+		}
+
+		/// <summary>
+		/// Requests a manifest of everything inside of the provided collection(s), and optionally enumerates any child collections recursively.
+		/// </summary>
+		/// <param name="collectionsToRead">Every collection to get the data of.</param>
+		/// <param name="ignoreCollectionIDs">A list of collection IDs to skip.</param>
+		/// <param name="itemIDsOut">Every mod ID that is in this collection. Null to ignore.</param>
+		/// <param name="collectionIDsOut">Every child collection within this one. <strong>Only filled if <paramref name="recursive"/> is <see langword="false"/>.</strong> Null to ignore.</param>
+		/// <param name="recursive">If <see langword="true"/>, child collections are also enumerated.</param>
+		/// <param name="cancellationToken">Can be used to cancel the task.</param>
+		/// <returns></returns>
+		/// <exception cref="OperationCanceledException"></exception>
+		/// <exception cref="KeyNotFoundException">The file was not found, which also might mean it's not a collection.</exception>
+		/// <exception cref="InvalidOperationException">An error occurred that wasn't the file being missing.</exception>
+		private static async Task GetAllModsInCollectionAsync(ReadOnlyMemory<long> collectionsToRead, ConcurrentHashSet<long> ignoreCollectionIDs, ConcurrentHashSet<long>? itemIDsOut, ConcurrentHashSet<long>? collectionIDsOut, bool recursive, CancellationToken cancellationToken) {
+			cancellationToken.ThrowIfCancellationRequested();
+
+			/*
+			MultipartFormDataContent requestBody = new MultipartFormDataContent();
+
+			ReadOnlySpan<long> entries = collectionsToRead.Span;
+			int index = 0;
+			for (int i = 0; i < collectionsToRead.Length; i++) {
+				long collection = entries[i];
+				if (!ignoreCollectionIDs.Contains(collection)) {
+					requestBody.Add(new StringContent(collection.ToString()), $"publishedfileids[{index++}]");
+				}
+			}
+			requestBody.Add(new StringContent(index.ToString()), "collectioncount");
+			*/
+
+			// TODO: Why does ^ brick the request?
+
+			Dictionary<string, string> kvp = [];
+			ReadOnlySpan<long> entries = collectionsToRead.Span;
+			int index = 0;
+			for (int i = 0; i < collectionsToRead.Length; i++) {
+				long collection = entries[i];
+				if (!ignoreCollectionIDs.Contains(collection)) {
+					kvp[$"publishedfileids[{index++}]"] = collection.ToString();
+				}
+			}
+			kvp["collectioncount"] = index.ToString();
+			FormUrlEncodedContent requestBody = new FormUrlEncodedContent(kvp);
+			
+			if (index == 0) return; // Nothing to request!
+
+			int retries = 3;
+			while (retries-- > 0) {
+				try {
+					HttpRequestMessage request = new HttpRequestMessage {
+						Method = HttpMethod.Post,
+						RequestUri = new Uri(STEAM_API_GET_COLLECTION_DETAILS),
+						Content = requestBody
+					};
+					HttpResponseMessage message = await SBModManagerGlobals.HTTP_CLIENT.SendAsync(request, cancellationToken).ConfigureAwait(false);
+					CollectionDetails details = await GetCollectionDetailsFromResponseAsync(message, cancellationToken).ConfigureAwait(false);
+					if (details.result == EResult.RateLimitExceeded) {
+						throw new HttpRequestException($"EResult.{details.result}", null, HttpStatusCode.TooManyRequests);
+					} else if (details.result == EResult.LimitExceeded) {
+						throw new HttpRequestException($"EResult.{details.result}", null, HttpStatusCode.RequestHeaderFieldsTooLarge);
+					} else if (details.result == EResult.FileNotFound) {
+						throw new InvalidOperationException("The provided file was not found. It is either not a collection, or it is hidden, unlisted, or friends-only.");
+					} else if (details.result != EResult.OK) {
+						throw new KeyNotFoundException($"Failed to process collection: Steam replied with EResult.{details.result}");
+					} else {
+						// Good to go. Ignore all of the collections first...
+						foreach (long collection in collectionsToRead.Span) {
+							// ^ Must get the span again since spans can't cross await boundaries (and it won't raise a compiler error)
+							ignoreCollectionIDs.Add(collection);
+						}
+
+						List<long> childCollectionsToRead = [];
+						foreach (CollectionDetailsEntry entry in details.collectionDetails) {
+							foreach (CollectionDetailsEntryChild child in entry.children) {
+								if (child.fileType == EWorkshopFileType.Community) {
+									itemIDsOut?.Add(child.publishedFileID);
+								} else if (child.fileType == EWorkshopFileType.Collection) {
+									if (!recursive) {
+										collectionIDsOut?.Add(child.publishedFileID);
+									} else {
+										childCollectionsToRead.Add(child.publishedFileID);
+									}
+								}
+							}
+						}
+						if (!recursive || childCollectionsToRead.Count == 0) return;
+						await GetAllModsInCollectionAsync(childCollectionsToRead.ToArray().AsMemory(), ignoreCollectionIDs, itemIDsOut, collectionIDsOut, recursive, cancellationToken).ConfigureAwait(false);
+						return;
+					}
+
+				} catch (HttpRequestException httpError) {
+					if (httpError.StatusCode == HttpStatusCode.TooManyRequests) {
+						// If we get rate limited, wait a while then try again.
+						await Task.Delay(5000, cancellationToken).ConfigureAwait(false);
+						continue;
+
+					} else if (httpError.StatusCode == HttpStatusCode.RequestHeaderFieldsTooLarge) {
+						// If the request is too large for whatever reason, just split it in half and try again.
+
+						int halfLength = collectionsToRead.Length >>> 1;
+						if ((collectionsToRead.Length & 1) != 0) halfLength++;
+						if (halfLength == 0) throw new InvalidOperationException("Somehow the request was too large but there was literally only one field. This is a very strange and nonsensical error.");
+
+						// No "halfLengthB" because we use a range expression that goes to the end of the array, knowing the length of the second segment is not useful.
+						await GetAllModsInCollectionAsync(collectionsToRead[..halfLength], ignoreCollectionIDs, itemIDsOut, collectionIDsOut, recursive, cancellationToken).ConfigureAwait(false);
+						await GetAllModsInCollectionAsync(collectionsToRead[halfLength..], ignoreCollectionIDs, itemIDsOut, collectionIDsOut, recursive, cancellationToken).ConfigureAwait(false);
+						return;
+					}
+				}
+			}
+			throw new InvalidOperationException("Failed to get data about collection(s) after multiple tries.");
+		}
+
+		/// <summary>
+		/// Reads the HTTP Response from a call to <see cref="STEAM_API_GET_COLLECTION_DETAILS"/> returns the resulting <see cref="CollectionDetails"/> directly.
+		/// </summary>
+		/// <param name="response">The http response from Steam.</param>
+		/// <param name="cancellationToken">Used to cancel processing.</param>
+		/// <returns></returns>
+		/// <exception cref="OperationCanceledException"></exception>
+		private static async Task<CollectionDetails> GetCollectionDetailsFromResponseAsync(HttpResponseMessage response, CancellationToken cancellationToken) {
+			string content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+			Variant parsed = Json.ParseString(content);
+			if (parsed.VariantType == Variant.Type.Dictionary) {
+				GDDictionary json = (GDDictionary)parsed;
+				json = (GDDictionary)json["response"];
+				return new CollectionDetails(json);
+			}
+			return default;
+		}
+
+		#endregion
+
+		#region Get Data of Workshop IDs
+
+		/// <summary>
+		/// Asks Steam to provide information about every file ID provided in <paramref name="workshopIDs"/>.
+		/// </summary>
+		/// <param name="workshopIDs"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public static async Task<PublishedFileDetailsEntry[]> GetPublishedFileDetailsAsync(long[] workshopIDs, CancellationToken cancellationToken) {
+			List<PublishedFileDetailsEntry> result = new List<PublishedFileDetailsEntry>(workshopIDs.Length);
+			await GetPartialPublishedFileDetailsAsync(workshopIDs, result, cancellationToken);
+			return result.ToArray();
+		}
+
+		/// <summary>
+		/// To be used by <see cref="GetPublishedFileDetailsAsync(long[], CancellationToken)"/>. This contains a contingency for when there's so many IDs that Steam
+		/// says the request is too large.
+		/// </summary>
+		/// <param name="workshopIDs"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		private static async Task GetPartialPublishedFileDetailsAsync(ReadOnlyMemory<long> workshopIDs, List<PublishedFileDetailsEntry> result, CancellationToken cancellationToken) {
+			cancellationToken.ThrowIfCancellationRequested();
+
+			/*
+			MultipartFormDataContent requestBody = new MultipartFormDataContent();
+
+			ReadOnlySpan<long> entries = workshopIDs.Span;
+			if (entries.Length == 0) return;
+			for (int i = 0; i < workshopIDs.Length; i++) {
+				long collection = entries[i];
+				requestBody.Add(new StringContent(collection.ToString()), $"publishedfileids[{i}]");
+			}
+			requestBody.Add(new StringContent(workshopIDs.Length.ToString()), "itemcount");
+			*/
+
+			ReadOnlySpan<long> entries = workshopIDs.Span;
+			if (entries.Length == 0) return;
+			Dictionary<string, string> kvp = [];
+
+			for (int i = 0; i < workshopIDs.Length; i++) {
+				long collection = entries[i];
+				kvp[$"publishedfileids[{i}]"] = collection.ToString();
+			}
+			kvp["itemcount"] = entries.Length.ToString();
+
+			FormUrlEncodedContent requestBody = new FormUrlEncodedContent(kvp);
+
+			int retries = 3;
+			while (retries-- > 0) {
+				try {
+					HttpRequestMessage request = new HttpRequestMessage {
+						Method = HttpMethod.Post,
+						RequestUri = new Uri(STEAM_API_GET_PUBLISHED_FILE_DETAILS),
+						Content = requestBody
+					};
+					HttpResponseMessage message = await SBModManagerGlobals.HTTP_CLIENT.SendAsync(request, cancellationToken).ConfigureAwait(false);
+					PublishedFileDetails details = await GetFileDetailsFromResponseAsync(message, cancellationToken).ConfigureAwait(false);
+					if (details.result == EResult.RateLimitExceeded) {
+						throw new HttpRequestException($"EResult.{details.result}", null, HttpStatusCode.TooManyRequests);
+					} else if (details.result == EResult.LimitExceeded) {
+						throw new HttpRequestException($"EResult.{details.result}", null, HttpStatusCode.RequestHeaderFieldsTooLarge);
+					} else if (details.result != EResult.OK) {
+						throw new InvalidOperationException($"Failed to process items: Steam replied with EResult.{details.result}");
+					} else {
+						// Good to go.
+						List<long> childCollectionsToRead = [];
+						foreach (PublishedFileDetailsEntry entry in details.publishedFileDetails) {
+							result.Add(entry);
+						}
+						return;
+					}
+
+				} catch (HttpRequestException httpError) {
+					if (httpError.StatusCode == HttpStatusCode.TooManyRequests) {
+						// If we get rate limited, wait a while then try again.
+						await Task.Delay(5000, cancellationToken).ConfigureAwait(false);
+						continue;
+
+					} else if (httpError.StatusCode == HttpStatusCode.RequestHeaderFieldsTooLarge) {
+						// If the request is too large for whatever reason, just split it in half and try again.
+
+						int halfLength = workshopIDs.Length >>> 1;
+						if ((workshopIDs.Length & 1) != 0) halfLength++;
+						if (halfLength == 0) throw new InvalidOperationException("Somehow the request was too large but there was literally only one field. This is a very strange and nonsensical error.");
+
+						// No "halfLengthB" because we use a range expression that goes to the end of the array, knowing the length of the second segment is not useful.
+						await GetPartialPublishedFileDetailsAsync(workshopIDs[..halfLength], result, cancellationToken);
+						await GetPartialPublishedFileDetailsAsync(workshopIDs[halfLength..], result, cancellationToken);
+						return;
+					}
+				}
+			}
+			throw new InvalidOperationException("Failed to get data about items(s) after multiple tries.");
+		}
+
+		/// <summary>
+		/// Reads the HTTP Response from a call to <see cref="STEAM_API_GET_PUBLISHED_FILE_DETAILS"/> returns the resulting <see cref="PublishedFileDetails"/> directly.
+		/// </summary>
+		/// <param name="response">The http response from Steam.</param>
+		/// <param name="cancellationToken">Used to cancel processing.</param>
+		/// <returns></returns>
+		/// <exception cref="OperationCanceledException"></exception>
+		private static async Task<PublishedFileDetails> GetFileDetailsFromResponseAsync(HttpResponseMessage response, CancellationToken cancellationToken) {
+			string content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+			Variant parsed = Json.ParseString(content);
+			if (parsed.VariantType == Variant.Type.Dictionary) {
+				GDDictionary json = (GDDictionary)parsed;
+				json = (GDDictionary)json["response"];
+				return new PublishedFileDetails(json);
+			}
+			return default;
+		}
+
+		#endregion
+
+		#region Check For Updates
+
+		public static async Task<bool> CheckForUpdatesAsync() {
+			// POST https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/
+			// In body form-data:
+			// itemcount
+			// publishedfileids[0], [1], [2]
+			/*
+			 * 
+			MultipartFormDataContent content = new MultipartFormDataContent();
+			content.Add(new StringContent("1"), "itemcount")
+			 * */
+			throw new NotImplementedException();
+		}
+
+		#endregion
 
 	}
 }

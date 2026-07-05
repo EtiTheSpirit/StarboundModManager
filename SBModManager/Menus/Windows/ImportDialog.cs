@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -263,7 +264,8 @@ namespace SBModManager.Menus.Windows {
 			progress.ShowWithCancellation(async delegate {
 				try {
 					using FileStream stream = File.OpenRead(sbmm);
-					Modpack modpack = await PackExportImport.ImportModpackAsync(stream, true, progress, cts.Token);
+					using GZipStream decompressor = new GZipStream(stream, CompressionMode.Decompress);
+					Modpack modpack = await PackExportImport.ImportModpackAsync(decompressor, true, progress, cts.Token);
 					foreach (KeyValuePair<ModSource, bool> binding in modpack.ModSources) {
 						editing.ModSources.TryAdd(binding.Key, binding.Value);
 					}
@@ -301,9 +303,9 @@ namespace SBModManager.Menus.Windows {
 						OS.Alert($"Failed to parse {workshopURLOrID} as a number or a URL.", "Import failed!");
 					}
 				}
-				long[] failed = await SteamTools.DownloadWorkshopModsAsync([id], true, cts.Token);
-				if (failed.Length == 0) {
-					editing.ModSources.TryAdd(new ModSource(id), true);
+				long[] acquired = await SteamTools.DownloadWorkshopModOrCollectionAsync(id, true, progress, cts.Token);
+				for (int i = 0; i < acquired.Length; i++) {
+					editing.ModSources.TryAdd(ModSource.GetOrCreateSource(acquired[i]), true);
 				}
 
 			}, cts, true).ContinueWith(delegate {

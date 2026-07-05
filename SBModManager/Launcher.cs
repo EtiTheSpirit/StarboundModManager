@@ -21,9 +21,10 @@ namespace SBModManager {
 		/// <param name="modpack">The modpack to launch.</param>
 		/// <param name="progressWindow">The progress of the launch. This is an exclusive window, so it doubles as a means to lock out the UI as well.</param>
 		/// <param name="completeWhenStarboundCloses">If true, the task completes when Starbound closes. Otherwise, it completes once it launches.</param>
+		/// <param name="launchServer">If true, launch the server. Otherwise, launch the client.</param>
 		/// <param name="cancellationToken">A <see cref="CancellationToken"/> used to terminate launching or exit the game.</param>
 		/// <returns></returns>
-		public static async Task LaunchAsync(Modpack modpack, GeneralProgressWindow progressWindow, bool completeWhenStarboundCloses, CancellationToken cancellationToken) {
+		public static async Task LaunchAsync(Modpack modpack, GeneralProgressWindow progressWindow, bool completeWhenStarboundCloses, bool launchServer, CancellationToken cancellationToken) {
 			ArgumentNullException.ThrowIfNull(modpack);
 			ArgumentNullException.ThrowIfNull(progressWindow);
 			if (!cancellationToken.CanBeCanceled) throw new ArgumentException("The CancellationToken must be valid.");
@@ -31,14 +32,22 @@ namespace SBModManager {
 			progressWindow.SetStatus("Preparing launch configuration...\nIf any mods are missing, they will be downloaded during this step.");
 			progressWindow.SetProgress(float.NaN);
 			modpack.LastPlayed = DateTime.Now;
-			string sbinitConfig = await modpack.SaveAndUpdateInitAsync(cancellationToken);
+			(string sbInitClientPath, string sbInitServerPath) = await modpack.SaveAndUpdateInitsAsync(cancellationToken);
 
-			progressWindow.SetStatus("Launching Starbound...");
+			if (launchServer) {
+				progressWindow.SetStatus("Launching Starbound Server...");
+			} else {
+				progressWindow.SetStatus("Launching Starbound...");
+			}
 			ProcessStartInfo starboundStartInfo = new ProcessStartInfo {
-				FileName = Directories.GetLocalStarboundProgram()
+				FileName = launchServer ? Directories.GetLocalStarboundServerProgram() : Directories.GetLocalStarboundProgram()
 			};
 			starboundStartInfo.ArgumentList.Add("-bootconfig");
-			starboundStartInfo.ArgumentList.Add(sbinitConfig);
+			if (launchServer) {
+				starboundStartInfo.ArgumentList.Add(sbInitServerPath);
+			} else {
+				starboundStartInfo.ArgumentList.Add(sbInitClientPath);
+			}
 
 			Process starbound = new Process() {
 				StartInfo = starboundStartInfo
@@ -47,7 +56,11 @@ namespace SBModManager {
 
 			try {
 				if (completeWhenStarboundCloses) {
-					progressWindow.SetStatus("Starbound is now running.\nIn order to use the mod manager,\nyou must exit the game.", "Starbound Is Running!");
+					if (launchServer) {
+						progressWindow.SetStatus("Starbound Server is now running.\nIn order to use the mod manager,\nyou must exit the game.", "Starbound Is Running!");
+					} else {
+						progressWindow.SetStatus("Starbound is now running.\nIn order to use the mod manager,\nyou must exit the game.", "Starbound Is Running!");
+					}
 					progressWindow.CancelButton.SetDeferred("text", "Force Quit Starbound");
 					await starbound.WaitForExitAsync(cancellationToken);
 				}

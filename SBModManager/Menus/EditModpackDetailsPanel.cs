@@ -72,13 +72,6 @@ namespace SBModManager.Menus {
 			ChangeModpackIconButton.Pressed += OnChangeIconPressed;
 
 			FindIconDialog.FileSelected += OnIconSelected;
-			ProfileLocation.MetaClicked += OnMetaClicked;
-		}
-
-		private void OnMetaClicked(Variant meta) {
-			if (EditingModpack != null) {
-				OS.ShellOpen(Directories.GetPackDirectory(EditingModpack.ID));
-			}
 		}
 
 		private void OnIconSelected(string path) {
@@ -107,7 +100,7 @@ namespace SBModManager.Menus {
 				EditingModpack.Name = newName;
 				EditingModpack.Creator = ModpackCreatorEntry.Text;
 				EditingModpack.Description = DescriptionEntry.Text;
-				EditingModpack.SaveAndUpdateInitAsync(CancellationToken.None).Wait();
+				EditingModpack.SaveAndUpdateInitsAsync(CancellationToken.None).Wait();
 			}
 		}
 
@@ -125,7 +118,7 @@ namespace SBModManager.Menus {
 			DescriptionEntry.Text = modpack.Description;
 			ModpackIcon.Texture = modpack.GetIcon();
 
-			ProfileLocation.Text = $"[url=Open]ID: {EditingModpack.ID:D} - Click to open in file explorer.[/url]";
+			ProfileLocation.Text = $"ID: {EditingModpack.ID:D}";
 		}
 
 	}

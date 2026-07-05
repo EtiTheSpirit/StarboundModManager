@@ -55,6 +55,7 @@ namespace SBModManager.ModInstances {
 		/// </summary>
 		public long FileSizeBytes { get; }
 
+		/*
 		/// <summary>
 		/// Create a new <see cref="ModArchive"/> within the provided <see cref="ModSource"/> and with the provided archive or directory name.
 		/// <para/>
@@ -87,6 +88,7 @@ namespace SBModManager.ModInstances {
 				FileSizeBytes = fsb;
 			}
 		}
+		*/
 
 		/// <summary>
 		/// Create a <see cref="ModArchive"/> as a <see cref="ModSource"/>.

@@ -16,6 +16,6 @@ Starbound Mod Manager (SBMM) is a cross-platform tool which allows you to manage
 * You can import and export modpacks for easy sharing with your friends!
 * Space-efficient storage allows an unlimited number of packs to share just one mod installation, preventing unnecessary file bloat!
 
-###### \* usually. In some edge cases, manual intervention is required, but [the help page](https://github.com/EtiTheSpirit/StarboundModManager/blob/master/HELP.md) has detailed instructions on how to do it.
+###### \* usually. In some edge cases, manual intervention is required, but [the help page](https://github.com/XansWorkshop/StarboundModManager/blob/master/HELP.md) has detailed instructions on how to do it.
 
-**More coming soon! Check the [to-do list](https://github.com/EtiTheSpirit/StarboundModManager/blob/master/TODO.md).**
+**More coming soon! Check the [to-do list](https://github.com/XansWorkshop/StarboundModManager/blob/master/TODO.md).**

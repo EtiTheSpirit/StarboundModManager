@@ -13,9 +13,6 @@ using System.Threading.Tasks;
 using SBModManager.GUI;
 using SBModManager.Other;
 
-using static Godot.HttpRequest;
-
-using HttpClient = System.Net.Http.HttpClient;
 using Semaphore = System.Threading.Semaphore;
 
 namespace SBModManager.SteamInterop {
@@ -115,18 +112,15 @@ namespace SBModManager.SteamInterop {
 					return result;
 				}
 
-				using HttpClient client = new HttpClient();
 				Stream? download = null;
-				int retries = 10;
+				int retries = 3;
 				while (retries-- > 0) {
 					try {
-						download = await client.GetStreamAsync(url, CancellationToken.None).ConfigureAwait(false);
+						download = await SBModManagerGlobals.HTTP_CLIENT.GetStreamAsync(url, CancellationToken.None).ConfigureAwait(false);
 						break;
 					} catch (HttpRequestException request) {
 						if (request.StatusCode == HttpStatusCode.TooManyRequests) {
-							int rng = Random.Shared.Next();
-							rng &= 0xFFF;
-							await Task.Delay(5000 + rng).ConfigureAwait(false);
+							await Task.Delay(5000).ConfigureAwait(false);
 						} else if (request.StatusCode == HttpStatusCode.NotFound) {
 							download = null;
 							break;

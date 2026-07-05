@@ -60,6 +60,7 @@ namespace SBModManager.GUI {
 		[AllowNull]
 		public Modpack Pack { get; private set; }
 
+		private PopupMenu? _popup;
 
 		public override void _Ready() {
 			ImportAttribute.ImportAll(this);
@@ -71,6 +72,68 @@ namespace SBModManager.GUI {
 
 			EnableMod.Toggled += OnEnableModToggled;
 			UninstallModButton.Pressed += OnUninstallPressed;
+		}
+
+		public override void _GuiInput(InputEvent @event) {
+			if (@event is InputEventMouseButton button) {
+				if (button.ButtonIndex == MouseButton.Right) {
+					if (IsInstanceValid(_popup)) {
+						_popup?.QueueFree();
+					}
+					PopupMenu menu = new PopupMenu();
+					_popup = menu;
+
+					if (Mod.Owner.IsEnabledIn(Pack) && !Mod.IsDisabledByForce) {
+						menu.AddItem("Disable");
+					} else {
+						menu.AddItem("Enable");
+					}
+					menu.AddItem("Open installation folder");
+					menu.AddSeparator();
+					menu.AddItem("View on Steam Workshop (Browser)");
+					menu.AddItem("View on Steam Workshop (Steam Client)");
+					menu.AddSeparator();
+					menu.AddItem("Remove from this pack");
+
+					if (Mod.IsDisabledByForce || !Mod.IsExclusive) {
+						menu.SetItemDisabled(0, true);
+					}
+					if (!Mod.Owner.IsWorkshopMod) {
+						menu.SetItemDisabled(3, true);
+						menu.SetItemDisabled(4, true);
+					}
+					if (!Mod.IsExclusive) {
+						menu.SetItemDisabled(6, true);
+					}
+
+					menu.IndexPressed += delegate (long index) {
+						if (index == 0) {
+							EnableMod.ButtonPressed = !EnableMod.ButtonPressed;
+						} else if (index == 1) {
+							OS.ShellOpen(Mod.Owner.AbsolutePath);
+							/* 2 is separator */
+						} else if (index == 3) {
+							OS.ShellOpen($"https://steamcommunity.com/sharedfiles/filedetails/?id={Mod.Owner.WorkshopID}");
+						} else if (index == 4) {
+							OS.ShellOpen($"steam://url/communityfilepage/{Mod.Owner.WorkshopID}");
+							/* 5 is separator */
+						} else if (index == 6) {
+							OnUninstallPressed();
+						}
+						menu.QueueFree();
+					};
+					GetWindow().AddChild(menu);
+
+					Vector2 position = GetWindow().Position;
+					position += GetWindow().GetMousePosition();
+					menu.Popup(new Rect2I((Vector2I)position, Vector2I.Zero));
+
+					GetWindow().SetInputAsHandled();
+				} else if (button.ButtonIndex == MouseButton.WheelDown || button.ButtonIndex == MouseButton.WheelUp) {
+					_popup?.QueueFree();
+					_popup = null;
+				}
+			}
 		}
 
 		private void OnEnableModToggled(bool toggledOn) {

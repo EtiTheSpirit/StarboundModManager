@@ -258,8 +258,16 @@ layout_mode = 2
 size_flags_horizontal = 3
 tooltip_text = "Export a list of every mod you have installed (either by workshop ID, or by packing in your manually installed mods) which you can send to other people to share your modpack.
 
-[color=#f77]This may freeze the app for a moment while exporting.[/color]"
+[color=#f77]Note:[/color] Your characters, worlds, and settings are [b]not[/b] included in the export."
 text = "Export Modpack..."
+script = ExtResource("5_0sis3")
+
+[node name="OpenFolderButton" type="Button" parent="VBoxContainer/Buttons" unique_id=777286707]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Opens the profile folder for this mod."
+text = "Open Folder"
 script = ExtResource("5_0sis3")
 
 [node name="ExportModpackDialog" type="FileDialog" parent="." unique_id=1450441310]

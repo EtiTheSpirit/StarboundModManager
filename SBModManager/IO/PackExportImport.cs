@@ -219,7 +219,7 @@ namespace SBModManager.IO {
 			modpack.Name = reader.ReadString() + appended;
 			modpack.Creator = reader.ReadString();
 			modpack.Description = reader.ReadString();
-			modpack.SaveAndUpdateInitAsync(cancellationToken).Wait(CancellationToken.None); // Save so the folders and stuff get created
+			modpack.SaveAndUpdateInitsAsync(cancellationToken).Wait(CancellationToken.None); // Save so the folders and stuff get created
 
 			long iconLength = reader.ReadInt64();
 			string directory = Directories.GetPackDirectory(modpack.ID);
@@ -245,14 +245,14 @@ namespace SBModManager.IO {
 			progressWindow?.SetStatus("Importing Workshop Mods...\nThis might take a while.");
 			progressWindow?.SetProgress(float.NaN);
 
-			HashSet<long> failed = SteamTools.DownloadWorkshopModsAsync(workshopMods.Keys.ToArray(), true, cancellationToken).Result.ToHashSet();
+			HashSet<long> failed = SteamTools.DownloadWorkshopModsAsync(workshopMods.Keys.ToArray(), true, progressWindow, cancellationToken).Result.ToHashSet();
 			foreach ((long id, bool enabled) in workshopMods) {
 				if (failed.Contains(id)) continue;
-				ModSource source = new ModSource(id);
+				ModSource source = ModSource.GetOrCreateSource(id);
 				modpack.ModSources[source] = enabled;
 			}
 
-			modpack.SaveAndUpdateInitAsync(cancellationToken).Wait(CancellationToken.None);
+			modpack.SaveAndUpdateInitsAsync(cancellationToken).Wait(CancellationToken.None);
 
 			return modpack;
 		}
@@ -298,7 +298,7 @@ namespace SBModManager.IO {
 				progressWindow?.SetProgress(float.NaN);
 
 				// Now I can create this, which will load the archives from disk.
-				return new ModSource(persistentName);
+				return ModSource.GetOrCreateSource(persistentName);
 			}
 		}
 

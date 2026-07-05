@@ -58,6 +58,12 @@ namespace SBModManager.Menus.Windows {
 		public FileDialog ExportModpackDialog { get; }
 
 		/// <summary>
+		/// The button to open the modpack's profile folder.
+		/// </summary>
+		[Import, AllowNull]
+		public Button OpenFolderButton { get; }
+
+		/// <summary>
 		/// The modpack being managed.
 		/// </summary>
 		public Modpack? CurrentModpack { get; private set; }
@@ -73,6 +79,7 @@ namespace SBModManager.Menus.Windows {
 			if (CurrentModpack != null) {
 				AssignModpackImpl(CurrentModpack);
 			}
+			OpenFolderButton.Pressed += OnOpenFolderButtonPressed;
 			Tabs.CurrentTab = 0;
 		}
 
@@ -102,6 +109,12 @@ namespace SBModManager.Menus.Windows {
 
 		private void OnExportModPressed() {
 			ExportModpackDialog.Show();
+		}
+
+		private void OnOpenFolderButtonPressed() {
+			if (CurrentModpack != null) {
+				OS.ShellOpen(Directories.GetPackDirectory(CurrentModpack.ID));
+			}
 		}
 
 		public override void _UnhandledKeyInput(InputEvent @event) {

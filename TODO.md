@@ -8,10 +8,8 @@ This is a collection of things I'd like to do in the future, as well as known bu
 
 ### Very Important
 
-1. Add the ability to import collections from Steam
-    * Steam only offers a way to download single mods, not entire collections. There might be a workaround, but all the ones I can think of are super tricky and definitely not supposed to be done.
-2. Add a right click menu.
-3. Add the ability to launch a modpack in server mode.
+1. Add a right click menu.
+2. Add the ability to launch a modpack in server mode.
 
 ### Less Important (But Still Useful)
 

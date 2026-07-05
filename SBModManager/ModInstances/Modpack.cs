@@ -62,11 +62,6 @@ namespace SBModManager.ModInstances {
 		public Guid ID { get; }
 
 		/// <summary>
-		/// An alias to using <see cref="Directories.GetPackSBInitFile(Guid)"/>
-		/// </summary>
-		public string SBInitPath => Directories.GetPackSBInitFile(ID);
-
-		/// <summary>
 		/// The mods that are part of this pack, then their state (enabled or disabled).
 		/// </summary>
 		public SortedDictionary<ModSource, bool> ModSources { get; } = [];
@@ -122,7 +117,7 @@ namespace SBModManager.ModInstances {
 							continue;
 						}
 						try {
-							pack.ModSources[new ModSource(workshopID)] = isEnabled;
+							pack.ModSources[ModSource.GetOrCreateSource(workshopID)] = isEnabled;
 						} catch (Exception ex) {
 							GD.PushError($"Workshop mod {workshopID} failed to load: {ex}");
 							missing.Add($"Workshop: {workshopID}");
@@ -135,11 +130,11 @@ namespace SBModManager.ModInstances {
 				} else {
 					string lowerKey = key.ToLower();
 					if (!alreadyGotNamed.Add(lowerKey)) {
-						GD.PushError($"Named mod {key} has already been added to this pack, but its mod_sources lookup included it more than once.");
+						GD.PushError($"Named mod {key} has already been added to this pack, but its mod_sources lookup included it more than once. Note that mods are not case sensitive to retain support on Windows!");
 						continue;
 					}
 					try {
-						pack.ModSources[new ModSource(lowerKey)] = isEnabled;
+						pack.ModSources[ModSource.GetOrCreateSource(key)] = isEnabled;
 					} catch (Exception ex) {
 						GD.PushError($"Named mod {key} failed to load: {ex}");
 						missing.Add(key);
@@ -162,7 +157,7 @@ namespace SBModManager.ModInstances {
 		/// </summary>
 		/// <param name="cancellationToken">A <see cref="CancellationToken"/> which can be used to terminate the launch.</param>
 		/// <returns></returns>
-		public async Task<string> SaveAndUpdateInitAsync(CancellationToken cancellationToken) {
+		public async Task<(string client, string server)> SaveAndUpdateInitsAsync(CancellationToken cancellationToken) {
 			GDDictionary data = [];
 			data["name"] = Name;
 			data["creator"] = Creator;
@@ -180,13 +175,15 @@ namespace SBModManager.ModInstances {
 			data["mod_sources"] = modSources;
 
 			string packJson = Directories.GetPackInfoFile(ID);
-			string sbInitJson = Directories.GetPackSBInitFile(ID);
+			string sbInitClientJson = Directories.GetPackSBInitFile(ID, false);
+			string sbInitServerJson = Directories.GetPackSBInitFile(ID, true);
 			Directory.CreateDirectory(Path.GetDirectoryName(packJson)!);
 			File.WriteAllText(packJson, Json.Stringify(data));
 
-			GDDictionary sbInit = await MakeSBInitAsync(cancellationToken).ConfigureAwait(false);
-			File.WriteAllText(sbInitJson, Json.Stringify(sbInit));
-			return sbInitJson;
+			(GDDictionary sbInitClient, GDDictionary sbInitServer) = await MakeSBInitsAsync(cancellationToken).ConfigureAwait(false);
+			File.WriteAllText(sbInitClientJson, Json.Stringify(sbInitClient));
+			File.WriteAllText(sbInitServerJson, Json.Stringify(sbInitServer));
+			return (sbInitClientJson, sbInitServerJson);
 		}
 
 		public void Delete() {
@@ -208,7 +205,22 @@ namespace SBModManager.ModInstances {
 			foreach (KeyValuePair<ModSource, bool> kvp in ModSources) {
 				dupe.ModSources[kvp.Key] = kvp.Value;
 			}
-			dupe.SaveAndUpdateInitAsync(CancellationToken.None).Wait();
+			dupe.SaveAndUpdateInitsAsync(CancellationToken.None).Wait();
+
+			try {
+				Directories.CopyDirectoryOverwrite(
+					Directories.GetStorageDirectory(ID, false),
+					Directories.GetStorageDirectory(dupe.ID, false),
+					CancellationToken.None
+				);
+			} catch (DirectoryNotFoundException) { }
+			try {
+				Directories.CopyDirectoryOverwrite(
+					Directories.GetStorageDirectory(ID, true),
+					Directories.GetStorageDirectory(dupe.ID, true),
+					CancellationToken.None
+				);
+			} catch (DirectoryNotFoundException) { }
 
 			string iconSrc = Path2.Combine(Directories.GetPackDirectory(ID), "icon.png");
 			string iconDst = Path2.Combine(Directories.GetPackDirectory(dupe.ID), "icon.png");
@@ -275,11 +287,11 @@ namespace SBModManager.ModInstances {
 
 		/// <summary>
 		/// Returns the JSON string which represents the contents of sbinit.config. This may need to do some downloading ahead of time
-		/// for things like Workshop mods.
+		/// for things like Workshop mods. This also makes sbinit_server.config, which is used by the server installation.
 		/// </summary>
 		/// <returns></returns>
 		/// <exception cref="OperationCanceledException"></exception>
-		private async Task<GDDictionary> MakeSBInitAsync(CancellationToken cancellationToken) {
+		private async Task<(GDDictionary client, GDDictionary server)> MakeSBInitsAsync(CancellationToken cancellationToken) {
 			GDArray assetDirectories = [];
 			assetDirectories.Add(Path2.Combine(Directories.GetLocalStarboundInstallDirectory(), "assets"));
 			assetDirectories.Add(Directories.GetExtraAssetsDirectory(ID));
@@ -289,7 +301,7 @@ namespace SBModManager.ModInstances {
 			cancellationToken.ThrowIfCancellationRequested();
 
 			long[] workshopMods = ModSources.Keys.Select(src => src.WorkshopID).Where(id => id != 0).ToArray();
-			HashSet<long> failed = (await SteamTools.DownloadWorkshopModsAsync(workshopMods, true, cancellationToken)).ToHashSet();
+			HashSet<long> failed = (await SteamTools.DownloadWorkshopModsAsync(workshopMods, true, null, cancellationToken)).ToHashSet();
 			cancellationToken.ThrowIfCancellationRequested();
 
 			foreach (KeyValuePair<ModSource, bool> binding in ModSources) {
@@ -299,13 +311,17 @@ namespace SBModManager.ModInstances {
 				cancellationToken.ThrowIfCancellationRequested();
 			}
 
-			GDDictionary sbInit = [ ];
-			sbInit["assetDirectories"] = assetDirectories;
-			sbInit["logDirectory"] = Directories.GetLogDirectory(ID);
-			sbInit["storageDirectory"] = Directories.GetStorageDirectory(ID);
-			sbInit["includeUGC"] = false;
+			GDDictionary sbInitClient = [];
+			sbInitClient["assetDirectories"] = assetDirectories;
+			sbInitClient["logDirectory"] = Directories.GetLogDirectory(ID, false);
+			sbInitClient["storageDirectory"] = Directories.GetStorageDirectory(ID, false);
+			sbInitClient["includeUGC"] = false;
 
-			return sbInit;
+			GDDictionary sbInitServer = sbInitClient.Duplicate(false);
+			sbInitServer["logDirectory"] = Directories.GetLogDirectory(ID, true);
+			sbInitServer["storageDirectory"] = Directories.GetStorageDirectory(ID, true);
+
+			return (sbInitClient, sbInitServer);
 		}
 	}
 }

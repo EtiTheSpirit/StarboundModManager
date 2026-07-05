@@ -73,7 +73,7 @@ namespace SBModManager.IO {
 
 				if (pakOrFolderPath == actualDestinationFile) {
 					// Imported directly from the local cache.
-					editingModpack.ModSources.TryAdd(new ModSource(name), true);
+					editingModpack.ModSources.TryAdd(ModSource.GetOrCreateSource(name), true);
 				} else {
 
 					try {
@@ -96,13 +96,13 @@ namespace SBModManager.IO {
 								PerformPakOrFolderImport(editingModpack, viewModListPanel, subFile, true);
 							}
 						} else {
-							Directories.CopyDirectory(pakOrFolderPath, actualDestinationFile!, CancellationToken.None);
-							editingModpack.ModSources.TryAdd(new ModSource(name), true);
+							Directories.CopyDirectoryOverwrite(pakOrFolderPath, actualDestinationFile!, CancellationToken.None);
+							editingModpack.ModSources.TryAdd(ModSource.GetOrCreateSource(name), true);
 						}
 					} else {
 						Directory.CreateDirectory(Path.GetDirectoryName(actualDestinationFile)!);
 						File.Copy(pakOrFolderPath, actualDestinationFile!, true);
-						editingModpack.ModSources.TryAdd(new ModSource(name), true);
+						editingModpack.ModSources.TryAdd(ModSource.GetOrCreateSource(name), true);
 					}
 				}
 				viewModListPanel?.RebuildList();

@@ -7,6 +7,7 @@
 [node name="ModpackEntry" type="ColorRect" unique_id=217134906]
 custom_minimum_size = Vector2(140, 180)
 custom_maximum_size = Vector2(140, 180)
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 530.0
@@ -40,6 +41,8 @@ custom_maximum_size = Vector2(128, 128)
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 0
+action_mode = 0
+button_mask = 3
 ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("1_nvb8f")

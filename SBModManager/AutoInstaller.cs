@@ -16,8 +16,6 @@ using SBModManager.ModInstances;
 using SBModManager.Other;
 using SBModManager.SteamInterop;
 
-using HttpClient = System.Net.Http.HttpClient;
-
 namespace SBModManager {
 
 	/// <summary>
@@ -45,11 +43,24 @@ namespace SBModManager {
 		/// Returns <see langword="true"/> if the Starbound executable file cannot be found in the application data directory.
 		/// </summary>
 		/// <returns></returns>
-		public static bool NeedsToInstallOpenStarbound() {
+		public static bool NeedsToInstallOpenStarboundClient() {
 			string starboundDir = Directories.GetLocalStarboundInstallDirectory();
 			string starboundApp = Directories.GetLocalStarboundProgram();
 			if (!File.Exists(Path2.Combine(starboundDir, "assets", "opensb.pak"))) return true;
 			return !File.Exists(starboundApp);
+		}
+
+		/// <summary>
+		/// Returns <see langword="true"/> if the Starbound executable file cannot be found in the application data directory.
+		/// </summary>
+		/// <returns></returns>
+		public static bool NeedsToInstallOpenStarboundServer() {
+			if (OS.GetName() == "macOS") return false; // Mac doesn't have a server.
+
+			string starboundDir = Directories.GetLocalStarboundInstallDirectory();
+			string starboundServerApp = Directories.GetLocalStarboundServerProgram();
+			if (!File.Exists(Path2.Combine(starboundDir, "assets", "opensb.pak"))) return true;
+			return !File.Exists(starboundServerApp);
 		}
 
 		/// <summary>
@@ -87,8 +98,7 @@ namespace SBModManager {
 				_ => throw new NotSupportedException($"SteamCMD: Operating System {os} is not supported.")
 			};
 
-			using HttpClient client = new HttpClient();
-			using Stream download = await client.GetStreamAsync(downloadLink).ConfigureAwait(false);
+			using Stream download = await SBModManagerGlobals.HTTP_CLIENT.GetStreamAsync(downloadLink, cancellationToken).ConfigureAwait(false);
 			cancellationToken.ThrowIfCancellationRequested();
 
 			if (os == "Windows") {
@@ -178,14 +188,19 @@ namespace SBModManager {
 		/// Asynchronously download and install the latest version of OpenStarbound for the current operating system into SBMM's data folder.
 		/// This is incomplete; <see cref="ImportGameAssetsAsync"/> needs to be called after this.
 		/// </summary>
+		/// <param name="server">If <see langword="false"/>, install the client. If <see langword="true"/>, install the server (not supported on Mac).</param>
 		/// <param name="cancellationToken">A <see cref="CancellationToken"/> which can be used to stop the installation.</param>
 		/// <returns></returns>
 		/// <exception cref="NotSupportedException">The operating system is not supported.</exception>
 		/// <exception cref="OperationCanceledException">The installation is cancelled.</exception>
 		/// <exception cref="InvalidOperationException">OpenStarbound is already installed.</exception>
 		/// <exception cref="HttpRequestException">Downloading OpenStarbound failed.</exception>
-		public static async Task InstallOpenStarboundAsync(CancellationToken cancellationToken) {
-			if (!NeedsToInstallOpenStarbound()) throw new InvalidOperationException("OpenStarbound already appears to be installed.");
+		public static async Task InstallOpenStarboundAsync(bool server, CancellationToken cancellationToken) {
+			if (server) {
+				if (!NeedsToInstallOpenStarboundServer()) throw new InvalidOperationException("OpenStarbound Server already appears to be installed. This is an application bug; this error should never be reached. Please report it.");
+			} else {
+				if (!NeedsToInstallOpenStarboundClient()) throw new InvalidOperationException("OpenStarbound already appears to be installed. This is an application bug; this error should never be reached. Please report it.");
+			}
 			
 			string localSBInstallDir = Directories.GetLocalStarboundInstallDirectory();
 
@@ -193,11 +208,17 @@ namespace SBModManager {
 			string os = OS.GetName();
 			string cpu = OS.GetProcessorName();
 			string installationName;
+			string distCapitalized = server ? "Server" : "Client";
+			string distLowercase = server ? "server" : "client";
+
 			if (os == "Windows") {
-				installationName = "OpenStarbound-Windows-Client.zip";
+				installationName = $"OpenStarbound-Windows-{distCapitalized}.zip";
 			} else if (os == "Linux") {
-				installationName = "OpenStarbound-Linux-Clang-Client.zip";
+				installationName = $"OpenStarbound-Linux-Clang-{distCapitalized}.zip";
 			} else if (os == "macOS") {
+				if (server) {
+					throw new NotSupportedException("OpenStarbound: There is no server application for Mac. If you are seeing this, this is a bug in the program (this error should have never been reached). Please report it.");
+				}
 				if (cpu.Contains("Apple")) {
 					installationName = "OpenStarbound-macOS-Silicon-Client.zip";
 				} else {
@@ -212,31 +233,29 @@ namespace SBModManager {
 			string version = await GetCurrentInDevOSBVersionAsync();
 			cancellationToken.ThrowIfCancellationRequested();
 
-			using HttpClient client = new HttpClient();
 			Stream download;
 			try {
-				download = await client.GetStreamAsync(string.Format(installationURLFormat, version, installationName), cancellationToken);
+				download = await SBModManagerGlobals.HTTP_CLIENT.GetStreamAsync(string.Format(installationURLFormat, version, installationName), cancellationToken);
 			} catch (HttpRequestException) {
-				GD.PushError("Cannot get the latest version of OpenStarbound because it failed to download.");
-				download = await client.GetStreamAsync(string.Format(installationURLFormat, OPENSB_VERSION_AS_OF_BUILD, installationName), cancellationToken);
+				GD.PushError($"Cannot get the latest version ({version}) of OpenStarbound because it failed to download.");
+				download = await SBModManagerGlobals.HTTP_CLIENT.GetStreamAsync(string.Format(installationURLFormat, OPENSB_VERSION_AS_OF_BUILD, installationName), cancellationToken);
 			}
 
 			// Extract the downloaded archive.
-			using (ZipArchive archive = new ZipArchive(download, ZipArchiveMode.Read)) {
-				if (os != "Windows") {
-					Stream clientTar = archive.GetEntry("client.tar")!.Open();
-					TarFile.ExtractToDirectory(clientTar, localSBInstallDir, true);
-					// Almost there. This now creates a client_distribution folder which we don't want.
+			using ZipArchive archive = new ZipArchive(download, ZipArchiveMode.Read);
+			if (os != "Windows") {
+				Stream clientTar = archive.GetEntry($"{distLowercase}.tar")!.Open();
+				TarFile.ExtractToDirectory(clientTar, localSBInstallDir, true);
+				// Almost there. This now creates a client_distribution or server_distribution folder which we don't want.
 
-					// Move everything out, and then delete the old folder.
-					DirectoryInfo clientDistro = new DirectoryInfo(Path2.Combine(localSBInstallDir, "client_distribution"));
-					foreach (DirectoryInfo child in clientDistro.GetDirectories()) {
-						Directory.Move(child.FullName, Path2.Combine(localSBInstallDir, child.Name));
-					}
-					clientDistro.Delete(false);
-				} else {
-					archive.ExtractToDirectory(localSBInstallDir);
+				// Move everything out, and then delete the old folder.
+				DirectoryInfo clientDistro = new DirectoryInfo(Path2.Combine(localSBInstallDir, $"{distLowercase}_distribution"));
+				foreach (DirectoryInfo child in clientDistro.GetDirectories()) {
+					Directories.CopyDirectoryOverwrite(child.FullName, Path2.Combine(localSBInstallDir, child.Name), CancellationToken.None);
 				}
+				clientDistro.Delete(false);
+			} else {
+				archive.ExtractToDirectory(localSBInstallDir, true);
 			}
 		}
 
@@ -263,7 +282,7 @@ namespace SBModManager {
 			return Task.Run(() => {
 				cancellationToken.ThrowIfCancellationRequested();
 				File.Copy(packedPak, Path2.Combine(localSBInstallDir, "assets", "packed.pak"), true);
-				Directories.CopyDirectory(tiledDir, Path2.Combine(localSBInstallDir, "tiled"), cancellationToken);
+				Directories.CopyDirectoryOverwrite(tiledDir, Path2.Combine(localSBInstallDir, "tiled"), cancellationToken);
 			}, cancellationToken);
 		}
 
@@ -272,8 +291,7 @@ namespace SBModManager {
 		/// </summary>
 		/// <returns></returns>
 		private static async Task<string> GetCurrentInDevOSBVersionAsync() {
-			using HttpClient client = new HttpClient();
-			string json = await client.GetStringAsync("https://raw.githubusercontent.com/OpenStarbound/OpenStarbound/refs/heads/main/assets/opensb/_metadata");
+			string json = await SBModManagerGlobals.HTTP_CLIENT.GetStringAsync("https://raw.githubusercontent.com/OpenStarbound/OpenStarbound/refs/heads/main/assets/opensb/_metadata");
 			Variant parsed = StarboundJsonSanitizer.ParseString(json);
 			if (parsed.VariantType == Variant.Type.Dictionary) {
 				ModMetadata metadata = new ModMetadata("opensb", (GDDictionary)parsed, 0);
@@ -292,7 +310,7 @@ namespace SBModManager {
 		/// </summary>
 		/// <returns></returns>
 		public static bool ShouldPerformSetup() {
-			return NeedsToInstallSteamCMD() || NeedsToInstallOpenStarbound() || NeedsToInstallStarboundAssets();
+			return NeedsToInstallSteamCMD() || NeedsToInstallOpenStarboundClient() || NeedsToInstallOpenStarboundServer() || NeedsToInstallStarboundAssets();
 		}
 
 		/// <summary>
@@ -302,7 +320,7 @@ namespace SBModManager {
 		/// <param name="cancellationToken">A <see cref="CancellationToken"/> to stop setup. Should be the same one as is used in <paramref name="progressWindow"/>.</param>
 		public static async Task PerformSetupAsync(GeneralProgressWindow progressWindow, CancellationToken cancellationToken) {
 			
-			progressWindow.SetProgress(0.000f);
+			progressWindow.SetProgress(0.00f);
 			if (NeedsToInstallSteamCMD()) {
 				progressWindow.SetStatus("Installing SteamCMD...\n(This will take about 20 seconds)", "Performing first-time setup...");
 				try {
@@ -313,18 +331,29 @@ namespace SBModManager {
 				}
 			}
 
-			progressWindow.SetProgress(0.333f);
-			if (NeedsToInstallOpenStarbound()) {
-				progressWindow.SetStatus("Installing OpenStarbound...", "Performing first-time setup...");
+			progressWindow.SetProgress(0.25f);
+			if (NeedsToInstallOpenStarboundClient()) {
+				progressWindow.SetStatus("Installing OpenStarbound Client...", "Performing first-time setup...");
 				try {
-					await InstallOpenStarboundAsync(cancellationToken);
+					await InstallOpenStarboundAsync(false, cancellationToken);
 				} catch (OperationCanceledException) {
 				} catch (Exception exc) {
 					OS.Alert(exc.Message, "An error occurred!");
 				}
 			}
 
-			progressWindow.SetProgress(0.666f);
+			progressWindow.SetProgress(0.50f);
+			if (NeedsToInstallOpenStarboundServer()) {
+				progressWindow.SetStatus("Installing OpenStarbound Server...", "Performing first-time setup...");
+				try {
+					await InstallOpenStarboundAsync(true, cancellationToken);
+				} catch (OperationCanceledException) {
+				} catch (Exception exc) {
+					OS.Alert(exc.Message, "An error occurred!");
+				}
+			}
+
+			progressWindow.SetProgress(0.75f);
 			if (NeedsToInstallStarboundAssets()) {
 				progressWindow.SetStatus("Importing Starbound Assets...", "Performing first-time setup...");
 				try {

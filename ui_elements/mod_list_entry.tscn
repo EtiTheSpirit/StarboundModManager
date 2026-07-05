@@ -63,6 +63,7 @@ offset_transform_position = Vector2(0, -3)
 tooltip_text = "This is where I'd put the description of the mod.
 
 IF I HAD ONE."
+mouse_filter = 1
 theme_override_constants/line_separation = -4
 theme_override_constants/strikethrough_alpha = 100
 theme_override_font_sizes/normal_font_size = 12
@@ -83,6 +84,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 offset_transform_enabled = true
 offset_transform_position = Vector2(0, -2)
+mouse_filter = 1
 theme_override_constants/strikethrough_alpha = 100
 theme_override_font_sizes/normal_font_size = 12
 theme_override_font_sizes/bold_font_size = 12

@@ -36,6 +36,12 @@ namespace SBModManager {
 		public TextureButton RunButton { get; }
 
 		/// <summary>
+		/// The topbar button to run the current pack as a server.
+		/// </summary>
+		[AllowNull, Import]
+		public TextureButton RunServerButton { get; }
+
+		/// <summary>
 		/// The topbar button to create a new modpack.
 		/// </summary>
 		[AllowNull, Import]
@@ -108,7 +114,7 @@ namespace SBModManager {
 
 		private ModpackEntryElement? _currentSelectedEntryButton;
 		private Modpack? _currentSelectedModpack;
-		private Task? _starbound;
+		private Task? _autoInstallerSetup;
 
 		private List<Guid> _pendingPacksToLoad = [];
 
@@ -127,6 +133,14 @@ namespace SBModManager {
 			HelpButton.Pressed += OnHelpButtonPressed;
 			ImportModpackDialog.FileSelected += OnModpackImportSelected;
 			Status.MetaClicked += OnStatusMetaClicked;
+
+			if (OS.GetName() == "macOS") {
+				RunServerButton.Disabled = true;
+				RunServerButton.TooltipText = "[color=#f77]Unavailable.[/color] MacOS does not currently support running game servers. Sorry!";
+			} else {
+				RunServerButton.Pressed += OnRunServerPressed;
+				RunServerButton.TooltipText = "Run a dedicated server for the selected modpack.";
+			}
 
 			string modpacks = Directories.GetPackDirectory();
 			Directory.CreateDirectory(modpacks);
@@ -151,15 +165,20 @@ namespace SBModManager {
 				CancellationTokenSource cts = new CancellationTokenSource();
 				HideButtons();
 				AddChild(progress);
-				_starbound = progress.ShowWithCancellation(() => AutoInstaller.PerformSetupAsync(progress, cts.Token), cts, true)
+				_autoInstallerSetup = progress.ShowWithCancellation(() => AutoInstaller.PerformSetupAsync(progress, cts.Token), cts, true)
 							.ContinueWith(delegate {
-								_starbound = null;
+								_autoInstallerSetup = null;
 								ShowButtons();
 							}, TaskScheduler.FromCurrentSynchronizationContext());
 			}
 
 			GetWindow().FilesDropped += OnFilesDropped;
+
+			Status.Text = @$"[font_size=14]Starbound Mod Manager
+Version: [color=#5f5]{ProjectSettings.GetSetting("application/config/version")}[/color][/font_size]
+To report bugs or request features, visit [color=#aff][url]https://github.com/XansWorkshop/StarboundModManager[/url][/color]";
 		}
+
 
 		private void OnFilesDropped(string[] files) {
 			string path = files.First();
@@ -244,25 +263,33 @@ namespace SBModManager {
 			}, TaskScheduler.FromCurrentSynchronizationContext());
 		}
 
-		private void OnRunPressed() {
-			if (_starbound != null && !_starbound.IsCompleted) return;
+		public void OnRunPressed() {
+			if (_autoInstallerSetup != null && !_autoInstallerSetup.IsCompleted) return;
 
 			if (_currentSelectedModpack != null && _currentSelectedEntryButton != null) {
-				Launch(_currentSelectedModpack, _currentSelectedEntryButton);
+				Launch(_currentSelectedModpack, _currentSelectedEntryButton, false);
+			}
+		}
+
+		public void OnRunServerPressed() {
+			if (_autoInstallerSetup != null && !_autoInstallerSetup.IsCompleted) return;
+
+			if (_currentSelectedModpack != null && _currentSelectedEntryButton != null) {
+				Launch(_currentSelectedModpack, _currentSelectedEntryButton, true);
 			}
 		}
 
 		private void OnNewModpackButtonPressed() {
-			if (_starbound != null && !_starbound.IsCompleted) return;
+			if (_autoInstallerSetup != null && !_autoInstallerSetup.IsCompleted) return;
 
 			Modpack modpack = new Modpack();
 			CurrentModpacks.Add(modpack);
-			modpack.SaveAndUpdateInitAsync(CancellationToken.None).Wait();
+			modpack.SaveAndUpdateInitsAsync(CancellationToken.None).Wait();
 			CreateButtonForModpack(modpack);
 		}
-		
-		private void OnDuplicateModpackButtonPressed() {
-			if (_starbound != null && !_starbound.IsCompleted) return;
+
+		public void OnDuplicateModpackButtonPressed() {
+			if (_autoInstallerSetup != null && !_autoInstallerSetup.IsCompleted) return;
 
 			if (_currentSelectedModpack != null) {
 				Modpack dupe = _currentSelectedModpack.Duplicate();
@@ -274,21 +301,21 @@ namespace SBModManager {
 		}
 
 		private void OnImportModpackButtonPressed() {
-			if (_starbound != null && !_starbound.IsCompleted) return;
+			if (_autoInstallerSetup != null && !_autoInstallerSetup.IsCompleted) return;
 
 			ImportModpackDialog.Show();
 		}
 
-		private void OnEditModpackButtonPressed() {
-			if (_starbound != null && !_starbound.IsCompleted) return;
+		public void OnEditModpackButtonPressed() {
+			if (_autoInstallerSetup != null && !_autoInstallerSetup.IsCompleted) return;
 
 			if (_currentSelectedModpack == null) return;
 			ModpackManagement.Show();
 			ModpackManagement.AssignModpack(_currentSelectedModpack);
 		}
 
-		private void OnDeleteModpackButtonPressed() {
-			if (_starbound != null && !_starbound.IsCompleted) return;
+		public void OnDeleteModpackButtonPressed() {
+			if (_autoInstallerSetup != null && !_autoInstallerSetup.IsCompleted) return;
 
 			if (_currentSelectedModpack == null) return;
 			Modpack modpack = _currentSelectedModpack;
@@ -320,14 +347,14 @@ namespace SBModManager {
 
 		#region Helpers
 
-		private void Launch(Modpack modpack, ModpackEntryElement clicked) {
+		private void Launch(Modpack modpack, ModpackEntryElement clicked, bool asServer) {
 			GeneralProgressWindow progress = Assets.CreateGeneralProgressWindow();
 			CancellationTokenSource cts = new CancellationTokenSource();
 			HideButtons();
 			AddChild(progress);
-			_starbound = progress.ShowWithCancellation(() => Launcher.LaunchAsync(modpack, progress, false, cts.Token), cts, true)
+			_autoInstallerSetup = progress.ShowWithCancellation(() => Launcher.LaunchAsync(modpack, progress, false, asServer, cts.Token), cts, true)
 						.ContinueWith(delegate {
-							_starbound = null;
+							_autoInstallerSetup = null;
 							ShowButtons();
 							RefreshModpackDisplay(modpack); // For the last played date
 							
@@ -361,7 +388,7 @@ namespace SBModManager {
 		/// <param name="modpack"></param>
 		/// <param name="clicked"></param>
 		private void SetSelection(Modpack modpack, ModpackEntryElement clicked) {
-			if (_starbound != null && !_starbound.IsCompleted) return;
+			if (_autoInstallerSetup != null && !_autoInstallerSetup.IsCompleted) return;
 
 			_currentSelectedEntryButton?.SetSelectedAppearance(false);
 			clicked.SetSelectedAppearance(true);
@@ -375,7 +402,7 @@ namespace SBModManager {
 		private ModpackEntryElement CreateButtonForModpack(Modpack modpack) {
 			ModpackEntryElement button = Assets.CreateModpackEntryElementFor(modpack);
 			button.OnModpackSelected += SetSelection;
-			button.OnModpackDoubleClicked += Launch;
+			button.OnModpackDoubleClicked += (modpack, clicked) => Launch(modpack, clicked, false);
 			ModpacksList.AddChild(button);
 			return button;
 		}

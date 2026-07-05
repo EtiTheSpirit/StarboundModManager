@@ -26,11 +26,30 @@ namespace SBModManager {
 			string baseDir = GetLocalStarboundInstallDirectory();
 			string os = OS.GetName();
 			if (os == "Windows") {
-				return Path2.Combine(baseDir, "win", "Starbound.exe");
+				return Path2.Combine(baseDir, "win", "starbound.exe");
 			} else if (os == "macOS") {
 				return Path2.Combine(baseDir, "osx", "Starbound.app");
 			} else if (os == "Linux") {
 				return Path2.Combine(baseDir, "linux", "starbound");
+			} else {
+				throw new InvalidOperationException($"Cannot get Starbond installation on OS: {os}");
+			}
+		}
+
+		/// <summary>
+		/// Returns the location of the Starbound executable.
+		/// </summary>
+		/// <returns></returns>
+		/// <exception cref="InvalidOperationException">This is run on an unsupported operating system.</exception>
+		public static string GetLocalStarboundServerProgram() {
+			string baseDir = GetLocalStarboundInstallDirectory();
+			string os = OS.GetName();
+			if (os == "Windows") {
+				return Path2.Combine(baseDir, "win", "starbound_server.exe");
+			} else if (os == "macOS") {
+				throw new NotSupportedException("MacOS does not support running a Starbound Server.");
+			} else if (os == "Linux") {
+				return Path2.Combine(baseDir, "linux", "starbound_server");
 			} else {
 				throw new InvalidOperationException($"Cannot get Starbond installation on OS: {os}");
 			}
@@ -96,9 +115,14 @@ namespace SBModManager {
 		/// Returns the path of the information json file for the modpack with the provided ID.
 		/// </summary>
 		/// <param name="modpackID"></param>
+		/// <param name="forServer">If true, get the log directory for the server. Get it for the client otherwise.</param>
 		/// <returns></returns>
-		public static string GetPackSBInitFile(Guid modpackID) {
-			return Path2.Combine(GetPackDirectory(modpackID), "sbinit.config");
+		public static string GetPackSBInitFile(Guid modpackID, bool forServer) {
+			if (forServer) {
+				return Path2.Combine(GetPackDirectory(modpackID), "sbinit_server.config");
+			} else {
+				return Path2.Combine(GetPackDirectory(modpackID), "sbinit.config");
+			}
 		}
 
 		/// <summary>
@@ -143,39 +167,31 @@ namespace SBModManager {
 		}
 
 		/// <summary>
-		/// Ensures that the profile directory for the modpack with the given ID has been created.
-		/// </summary>
-		/// <param name="modpackID">The GUID of the modpack to initialize.</param>
-		public static void InitializeModpackDirectory(Guid modpackID) {
-			string directory = GetPackDirectory(modpackID);
-			// CreateDirectory creates the entire tree.
-			Directory.CreateDirectory(Path2.Combine(directory, "logs"));
-			Directory.CreateDirectory(Path2.Combine(directory, "storage"));
-			Directory.CreateDirectory(Path2.Combine(directory, "extra_mods"));
-			Directory.CreateDirectory(Path2.Combine(directory, "extra_assets"));
-
-			File.WriteAllText(
-				Path2.Combine(directory, "NO_MODS_HERE.TXT"),
-				"You might be wondering \"where is the mod folder?\"\n\nThere is none. If you want to install mods manually go to the shared mods directory instead.\nThen, you can install them from your catalog."
-			);
-		}
-
-		/// <summary>
 		/// Returns the logs directory for the modpack with the provided ID.
 		/// </summary>
 		/// <param name="modpackID"></param>
-		public static string GetLogDirectory(Guid modpackID) {
+		/// <param name="forServer">If true, get the log directory for the server. Get it for the client otherwise.</param>
+		public static string GetLogDirectory(Guid modpackID, bool forServer) {
 			string directory = GetPackDirectory(modpackID);
-			return Path2.Combine(directory, "logs");
+			if (forServer) {
+				return Path2.Combine(directory, "logs_server");
+			} else {
+				return Path2.Combine(directory, "logs");
+			}
 		}
 
 		/// <summary>
 		/// Returns the storage directory for the modpack with the provided ID, where saves and the universe get stored.
 		/// </summary>
 		/// <param name="modpackID"></param>
-		public static string GetStorageDirectory(Guid modpackID) {
+		/// <param name="forServer">If true, get the storage directory for the server. Get it for the client otherwise.</param>
+		public static string GetStorageDirectory(Guid modpackID, bool forServer) {
 			string directory = GetPackDirectory(modpackID);
-			return Path2.Combine(directory, "storage");
+			if (forServer) {
+				return Path2.Combine(directory, "storage_server");
+			} else {
+				return Path2.Combine(directory, "storage");
+			}
 		}
 
 		/// <summary>
@@ -188,11 +204,11 @@ namespace SBModManager {
 		}
 
 		/// <summary>
-		/// Copies the <paramref name="source"/> directory to the <paramref name="target"/> location.
+		/// Copies the <paramref name="source"/> directory to the <paramref name="target"/> location, overwriting duplicate files.
 		/// </summary>
 		/// <param name="source"></param>
 		/// <param name="target"></param>
-		public static void CopyDirectory(string source, string target, CancellationToken cancellationToken) {
+		public static void CopyDirectoryOverwrite(string source, string target, CancellationToken cancellationToken) {
 			cancellationToken.ThrowIfCancellationRequested();
 			if (source.Equals(target, StringComparison.OrdinalIgnoreCase)) {
 				return;
@@ -204,7 +220,7 @@ namespace SBModManager {
 				File.Copy(file, Path2.Combine(target, Path.GetFileName(file)), true);
 			}
 			foreach (string subdirectory in Directory.GetDirectories(source)) {
-				CopyDirectory(subdirectory, Path2.Combine(target, Path.GetFileName(subdirectory)), cancellationToken);
+				CopyDirectoryOverwrite(subdirectory, Path2.Combine(target, Path.GetFileName(subdirectory)), cancellationToken);
 			}
 		}
 	}

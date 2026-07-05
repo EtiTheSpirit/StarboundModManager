@@ -3,9 +3,11 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 using Godot.NativeInterop;
 
@@ -79,6 +81,29 @@ namespace SBModManager.Menus {
 					} else {
 						if (Path.GetExtension(file).Equals(".pak", StringComparison.OrdinalIgnoreCase)) {
 							Importers.PerformPakOrFolderImport(EditingModpack, this, file);
+						} else if (Path.GetExtension(file).Equals(".sbmm", StringComparison.OrdinalIgnoreCase)) {
+							Modpack editing = EditingModpack;
+							GeneralProgressWindow progress = Assets.CreateGeneralProgressWindow();
+							CancellationTokenSource cts = new CancellationTokenSource();
+							progress.SetStatus("Importing mod list...", "Importing Mod");
+							progress.SetProgress(float.NaN);
+							AddChild(progress);
+							progress.ShowWithCancellation(async delegate {
+								try {
+									using FileStream stream = File.OpenRead(file);
+									using GZipStream decompressor = new GZipStream(stream, CompressionMode.Decompress);
+									Modpack modpack = await PackExportImport.ImportModpackAsync(decompressor, true, progress, cts.Token);
+									foreach (KeyValuePair<ModSource, bool> binding in modpack.ModSources) {
+										editing.ModSources.TryAdd(binding.Key, binding.Value);
+									}
+								} catch (Exception exc) {
+									OS.Alert(exc.Message, "Failed to import modpack!");
+								}
+							}, cts, true).ContinueWith(delegate {
+								if (IsInstanceValid(this)) {
+									RebuildList();
+								}
+							}, TaskScheduler.FromCurrentSynchronizationContext());
 						}
 					}
 				}
@@ -112,7 +137,7 @@ namespace SBModManager.Menus {
 		private void OnSearchTextChanged(string newText) {
 			_pendingSearchCooldown = 0.2;
 			_pendingSearchString = newText;
-			
+
 			// Give it a border when there is text.
 			if (SearchMods.GetThemeStylebox(NORMAL) is StyleBoxFlat flat) {
 				if (newText.Length == 0) {
@@ -176,7 +201,7 @@ namespace SBModManager.Menus {
 			HashSet<long> alreadyUsedIDs = EditingModpack.ModSources.Keys.Select(key => key.WorkshopID).Where(key => key != 0).ToHashSet();
 			foreach (long id in workshopIDs) {
 				if (!alreadyUsedIDs.Add(id)) continue;
-				EditingModpack.ModSources[new ModSource(id)] = true;
+				EditingModpack.ModSources[ModSource.GetOrCreateSource(id)] = true;
 			}
 			RebuildList();
 		}
@@ -191,6 +216,7 @@ namespace SBModManager.Menus {
 
 		public void OnClosing() {
 			ImportDialog.Hide();
+			SearchMods.Text = string.Empty;
 		}
 
 		/// <summary>

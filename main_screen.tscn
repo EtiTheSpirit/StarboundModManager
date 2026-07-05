@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://bxj2e5kcyxw4" path="res://SBModManager/Core.cs" id="1_w0p2i"]
 [ext_resource type="Texture2D" uid="uid://bsctcnud5svye" path="res://icons/play.png" id="2_sj757"]
 [ext_resource type="Script" uid="uid://x81ofxplde8b" path="res://SBModManager/GUI/RichTooltipElements/TooltipTextureButton.cs" id="3_4sclt"]
-[ext_resource type="PackedScene" uid="uid://dii41rl1tytuv" path="res://ui_elements/popups/program_settings.tscn" id="4_4sclt"]
+[ext_resource type="Texture2D" uid="uid://c1la0souexatb" path="res://icons/launch_server.png" id="4_62wn8"]
 [ext_resource type="Texture2D" uid="uid://cay0y0lw1y431" path="res://icons/new_modpack.png" id="4_ups6l"]
 [ext_resource type="Texture2D" uid="uid://bkqohamnsux0x" path="res://icons/duplicate_modpack.png" id="5_7sxnj"]
 [ext_resource type="PackedScene" uid="uid://dj6i10d8xumgl" path="res://ui_elements/popups/modpack_management.tscn" id="5_ywh4s"]
@@ -44,8 +44,21 @@ unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-tooltip_text = "Run the selected modpack. You can also double click on it."
+tooltip_text = "Play the selected modpack.
+
+You can also double-click on the icon below."
 texture_normal = ExtResource("2_sj757")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("3_4sclt")
+
+[node name="RunServerButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=445924957]
+unique_name_in_owner = true
+texture_filter = 1
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+tooltip_text = "(If you are reading this, something has broken)"
+texture_normal = ExtResource("4_62wn8")
 ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("3_4sclt")
@@ -80,9 +93,7 @@ unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-tooltip_text = "Duplicate the selected modpack.
-
-Settings, characters, and universes are not copied. Only the mods and the pack's information gets copied."
+tooltip_text = "Duplicate the selected modpack, including all of its characters and the universe."
 texture_normal = ExtResource("5_7sxnj")
 ignore_texture_size = true
 stretch_mode = 0
@@ -130,15 +141,20 @@ script = ExtResource("3_4sclt")
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/VBoxContainer" unique_id=1423019913]
 layout_mode = 2
 
-[node name="ModpacksList" type="HFlowContainer" parent="MarginContainer/VBoxContainer" unique_id=1722701330]
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer" unique_id=1778064599]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ModpacksList" type="HFlowContainer" parent="MarginContainer/VBoxContainer/ScrollContainer" unique_id=1722701330]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/h_separation = 32
 theme_override_constants/v_separation = 32
 alignment = 1
 
-[node name="StillLoadingLabel" type="Label" parent="MarginContainer/VBoxContainer/ModpacksList" unique_id=215891929]
+[node name="StillLoadingLabel" type="Label" parent="MarginContainer/VBoxContainer/ScrollContainer/ModpacksList" unique_id=215891929]
 unique_name_in_owner = true
 modulate = Color(0.73, 0.73, 0.73, 1)
 custom_minimum_size = Vector2(128, 128)
@@ -162,15 +178,11 @@ theme_override_font_sizes/italics_font_size = 12
 theme_override_font_sizes/mono_font_size = 12
 bbcode_enabled = true
 text = "[font_size=14]Starbound Mod Manager
-Version: [color=#f55]Beta 0.2.0[/color][/font_size]
-To report bugs or request features, visit [color=#aff][url]https://github.com/EtiTheSpirit/StarboundModManager[/url][/color]"
+Version: [color=#f55](Error)[/color][/font_size]
+To report bugs or request features, visit [color=#aff][url]https://github.com/XansWorkshop/StarboundModManager[/url][/color]"
 fit_content = true
 scroll_active = false
 vertical_alignment = 2
-
-[node name="ProgramSettings" parent="." unique_id=939907019 instance=ExtResource("4_4sclt")]
-unique_name_in_owner = true
-visible = false
 
 [node name="ModpackManagement" parent="." unique_id=1489936823 instance=ExtResource("5_ywh4s")]
 unique_name_in_owner = true
