@@ -219,6 +219,7 @@ namespace SBModManager.Menus {
 		public void OnClosing() {
 			ImportDialog.Hide();
 			SearchMods.Text = string.Empty;
+			OnSearchTextChanged(string.Empty);
 		}
 
 		/// <summary>

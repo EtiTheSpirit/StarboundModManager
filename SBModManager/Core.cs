@@ -174,9 +174,26 @@ namespace SBModManager {
 
 			GetWindow().FilesDropped += OnFilesDropped;
 
+			string projectVersion = ProjectSettings.GetSetting("application/config/version").AsString();
+			Version projectVersionInstance = new Version(projectVersion);
+
 			Status.Text = @$"[font_size=14]Starbound Mod Manager
-Version: [color=#5f5]{ProjectSettings.GetSetting("application/config/version")}[/color][/font_size]
+Installed Version: [color=#5f5]{projectVersion}[/color][/font_size]
 To report bugs or request features, visit [color=#aff][url]https://github.com/XansWorkshop/StarboundModManager[/url][/color]";
+
+			SBModManagerGlobals.HTTP_CLIENT.GetAsync("https://raw.githubusercontent.com/XansWorkshop/StarboundModManager/refs/heads/master/VERSION").ContinueWith(task => {
+				if (task.IsCompletedSuccessfully) {
+					try {
+						string versionText = task.Result.Content.ReadAsStringAsync().Result;
+						Version updateVersion = new Version(versionText.Trim());
+						if (updateVersion > projectVersionInstance) {
+							Status.Text = @$"[font_size=14]Starbound Mod Manager
+Installed Version: [color=#f55]{projectVersion} (Version {updateVersion} is now available!)[/color][/font_size]
+To report bugs or request features, visit [color=#aff][url]https://github.com/XansWorkshop/StarboundModManager[/url][/color]";
+						}
+					} catch { }
+				}
+			}, TaskScheduler.FromCurrentSynchronizationContext());
 		}
 
 
@@ -263,7 +280,7 @@ To report bugs or request features, visit [color=#aff][url]https://github.com/Xa
 					CreateButtonForModpack(task.Result!);
 				}
 			}, TaskScheduler.FromCurrentSynchronizationContext());
-			
+
 		}
 
 
@@ -361,7 +378,7 @@ To report bugs or request features, visit [color=#aff][url]https://github.com/Xa
 							_autoInstallerSetup = null;
 							ShowButtons();
 							RefreshModpackDisplay(modpack); // For the last played date
-							
+
 						}, TaskScheduler.FromCurrentSynchronizationContext());
 		}
 
