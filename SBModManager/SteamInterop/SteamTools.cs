@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,6 +15,8 @@ using Microsoft.Win32;
 using SBModManager.Menus.Windows;
 using SBModManager.Other;
 using SBModManager.SteamInterop.Web;
+
+using Environment = System.Environment;
 
 namespace SBModManager.SteamInterop {
 
@@ -124,9 +126,11 @@ namespace SBModManager.SteamInterop {
 					string steamInstallLocation = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam", "InstallPath", null) as string ?? @"C:\Program Files (x86)\Steam";
 					vdf = VDFReader.TryReadVDF(Path.Combine(steamInstallLocation, "steamapps", "libraryfolders.vdf"));
 				} else if (os == "macOS") {
-					vdf = VDFReader.TryReadVDF("~/Library/Application Support/Steam/steamapps/libraryfolders.vdf");
+					string userDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+					vdf = VDFReader.TryReadVDF(Path2.Combine(userDirectory, "Library/Application Support/Steam/steamapps/libraryfolders.vdf"));
 				} else if (os == "Linux") {
-					vdf = VDFReader.TryReadVDF("~/.steam/steam/steamapps/libraryfolders.vdf");
+					string userDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+					vdf = VDFReader.TryReadVDF(Path2.Combine(userDirectory, ".steam/steam/steamapps/libraryfolders.vdf"));
 				} else {
 					throw new NotSupportedException($"No known steam directory on OS: {os}");
 				}
