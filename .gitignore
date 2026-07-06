@@ -6,6 +6,8 @@
 # Godot Engine
 .godot/
 _BUILD/
+_TEST/
+_INTERNAL/
 
 # User-specific files
 *.rsuser
