@@ -245,6 +245,7 @@ namespace SBModManager {
 			using ZipArchive archive = new ZipArchive(download, ZipArchiveMode.Read);
 			if (os != "Windows") {
 				Stream clientTar = archive.GetEntry($"{distLowercase}.tar")!.Open();
+				Directory.CreateDirectory(localSBInstallDir);
 				TarFile.ExtractToDirectory(clientTar, localSBInstallDir, true);
 				// Almost there. This now creates a client_distribution or server_distribution folder which we don't want.
 
@@ -253,7 +254,7 @@ namespace SBModManager {
 				foreach (DirectoryInfo child in clientDistro.GetDirectories()) {
 					Directories.CopyDirectoryOverwrite(child.FullName, Path2.Combine(localSBInstallDir, child.Name), CancellationToken.None);
 				}
-				clientDistro.Delete(false);
+				clientDistro.Delete(true);
 			} else {
 				archive.ExtractToDirectory(localSBInstallDir, true);
 			}
