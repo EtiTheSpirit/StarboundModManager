@@ -223,9 +223,10 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Installs updates for all Workshop mods that need them.
 
-The system checks for updates when SBMM launches, and then once every 15 minutes after that."
+The system checks for updates when SBMM launches, and then up to once every 15 minutes after that."
 disabled = true
 text = "Update Mods"
+script = ExtResource("5_0sis3")
 
 [node name="ScrollContainer" type="ScrollContainer" parent="VBoxContainer/Tabs/ViewModList/VBoxContainer" unique_id=2122860021]
 layout_mode = 2
