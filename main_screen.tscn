@@ -226,3 +226,14 @@ display_mode = 1
 access = 2
 filters = PackedStringArray("*.sbmm;Starbound Mod Manager List")
 use_native_dialog = true
+
+[node name="FindStarboundFiles" type="FileDialog" parent="." unique_id=1125625936]
+unique_name_in_owner = true
+title = "Import Starbound Assets"
+initial_position = 2
+mode_overrides_title = false
+file_mode = 0
+display_mode = 1
+access = 2
+filters = PackedStringArray("packed.pak;Starbound Vanilla Assets")
+use_native_dialog = true

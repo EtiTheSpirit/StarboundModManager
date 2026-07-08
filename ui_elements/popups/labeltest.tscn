@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://ch6gxuxrguvyn"]
+
+[node name="Labeltest" type="RichTextLabel" unique_id=457399018]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+bbcode_enabled = true
+text = "[outline_size=8][outline_color=#000000ff][color=#ffffffff]Betab[/color][/outline_color][outline_color=#000000ff][color=#ffff00ff][img height=1em]res://icons/starbound.png[/img][/color][/outline_color][outline_color=#000000ff][color=#00000000].[/color][/outline_color][outline_color=#000000ff][color=#ffffffff][/color][/outline_color][outline_color=#000000ff][color=#ffffffff]und![/color][/outline_color][/outline_size]"

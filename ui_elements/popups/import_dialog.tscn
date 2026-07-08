@@ -102,7 +102,7 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Path to .pak file or mod folder..."
+placeholder_text = "File path to a .pak file or unpacked folder, or URL to online .pak file..."
 
 [node name="ChooseModPakButton" type="Button" parent="Panel/MarginContainer/VBoxContainer/ColumnatedEntries/Entries/SingleModFile" unique_id=947000851]
 unique_name_in_owner = true
@@ -129,7 +129,7 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Input Steam Workshop ID or link..."
+placeholder_text = "Steam Workshop URL or ID number..."
 
 [node name="SBMMList" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer/ColumnatedEntries/Entries" unique_id=45857800]
 layout_mode = 2
@@ -138,7 +138,7 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Path to .sbmm file..."
+placeholder_text = "File path to a .sbmm file, or URL to online .sbmm file..."
 
 [node name="ChooseSBMMFileButton" type="Button" parent="Panel/MarginContainer/VBoxContainer/ColumnatedEntries/Entries/SBMMList" unique_id=805104445]
 unique_name_in_owner = true
