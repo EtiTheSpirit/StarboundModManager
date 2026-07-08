@@ -426,6 +426,9 @@ namespace SBModManager.SteamInterop {
 			string workshopCacheDir = Directories.GetLocalWorkshopCacheDirectory();
 			if (sbPath != null) {
 				string workshopContent = Path2.Combine(sbPath, "workshop", "content", "211820");
+				if (!Directory.Exists(workshopContent)) {
+					return []; // This can happen if the game is uninstalled and reinstalled.
+				}
 				string[] subdirectories = Directory.GetDirectories(workshopContent);
 				for (int i = 0; i < subdirectories.Length; i++) {
 					cancellationToken.ThrowIfCancellationRequested();
