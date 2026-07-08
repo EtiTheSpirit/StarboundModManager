@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
@@ -15,8 +16,6 @@ using SBModManager.ModInstances;
 
 using SBModManager.Other;
 using SBModManager.SteamInterop;
-
-using static Godot.TextServer;
 
 namespace SBModManager.Menus.Windows {
 	public sealed partial class ImportDialog : Window {
@@ -261,9 +260,25 @@ namespace SBModManager.Menus.Windows {
 			progress.SetStatus("Importing mod list...", "Importing Mod");
 			progress.SetProgress(float.NaN);
 			AddChild(progress);
-			progress.ShowWithCancellation(async delegate {
+			_importTask = progress.ShowWithCancellation(async delegate {
 				try {
-					using FileStream stream = File.OpenRead(sbmm);
+					Stream? stream = null;
+					if (!File.Exists(sbmm)) {
+						if (Uri.TryCreate(sbmm, default, out Uri? link)) {
+							if ((link.Scheme == "http" || link.Scheme == "https")) {
+								progress.SetStatus("Downloading SBMM...", "Importing Mod");
+								stream = await SBModManagerGlobals.HTTP_CLIENT.GetStreamAsync(link.ToString());
+							} else if (link.IsFile) {
+								// lol
+								sbmm = link.AbsolutePath;
+							} else {
+								OS.Alert("No such file, or URL is invalid.", "Invalid SBMM");
+								return;
+							}
+						}
+					}
+
+					stream ??= File.OpenRead(sbmm);
 					using GZipStream decompressor = new GZipStream(stream, CompressionMode.Decompress);
 					Modpack modpack = await PackExportImport.ImportModpackAsync(decompressor, true, progress, cts.Token);
 					modpack.IsCorruptedDeleteOnNextRead = true; // It's not actually corrupted, but it's a garbage pack that we don't want to save.
@@ -295,7 +310,7 @@ namespace SBModManager.Menus.Windows {
 			progress.SetStatus("Downloading Workshop mod...", "Importing Mod");
 			progress.SetProgress(float.NaN);
 			AddChild(progress);
-			progress.ShowWithCancellation(async delegate {
+			_importTask = progress.ShowWithCancellation(async delegate {
 				if (!long.TryParse(workshopURLOrID, out long id)) {
 					if (Uri.TryCreate(workshopURLOrID, default, out Uri? resultUri)) {
 						// https://steamcommunity.com/sharedfiles/filedetails/?id=00000000000
@@ -317,7 +332,7 @@ namespace SBModManager.Menus.Windows {
 				}
 				OnCloseRequested();
 			}, TaskScheduler.FromCurrentSynchronizationContext());
-			
+
 		}
 
 		private void PerformPakOrFolderImport(string pakOrFolderPath) {
@@ -325,9 +340,52 @@ namespace SBModManager.Menus.Windows {
 			if (ViewModListPanel == null) return;
 			if (_importTask != null) return;
 
-			_importTask = Task.CompletedTask;
-			Importers.PerformPakOrFolderImport(EditingModpack, ViewModListPanel, pakOrFolderPath);
-			OnCloseRequested();
+			GeneralProgressWindow progress = Assets.CreateGeneralProgressWindow();
+			CancellationTokenSource cts = new CancellationTokenSource();
+			Modpack editing = EditingModpack;
+			ViewModListPanel panel = ViewModListPanel;
+			progress.SetStatus("Downloading Workshop mod...", "Importing Mod");
+			progress.SetProgress(float.NaN);
+			AddChild(progress);
+			string actualPath = pakOrFolderPath;
+			_importTask = progress.ShowWithCancellation(async delegate {
+
+				string? deleteTempFile = null;
+				if (!File.Exists(pakOrFolderPath) && !Directory.Exists(pakOrFolderPath)) {
+					if (Uri.TryCreate(pakOrFolderPath, default, out Uri? link)) {
+						if ((link.Scheme == "http" || link.Scheme == "https")) {
+							using Stream stream = await SBModManagerGlobals.HTTP_CLIENT.GetStreamAsync(link.ToString());
+							deleteTempFile = Path2.Combine(Directories.GetOnlinePakFileStagingDirectory(), Path.GetRandomFileName() + ".pak");
+							Directory.CreateDirectory(Path.GetDirectoryName(deleteTempFile)!);
+							using FileStream fs = File.OpenWrite(deleteTempFile);
+							stream.CopyTo(fs);
+
+							actualPath = deleteTempFile;
+
+						} else if (link.IsFile) {
+							// lol
+							actualPath = link.AbsolutePath;
+						} else {
+							OS.Alert("No such file, or URL is invalid.", "Invalid Pak");
+							return;
+						}
+					}
+				}
+
+				_importTask = Task.CompletedTask;
+				Importers.PerformPakOrFolderImport(EditingModpack, null, actualPath);
+				// Pass null into the mod list panel, attempting to rebuild the list in this thread raises an exception.
+
+				if (deleteTempFile != null) {
+					File.Delete(deleteTempFile);
+				}
+
+			}, cts, true).ContinueWith(delegate {
+				if (IsInstanceValid(panel)) {
+					panel.RebuildList();
+				}
+				OnCloseRequested();
+			}, TaskScheduler.FromCurrentSynchronizationContext());
 		}
 
 		#endregion
