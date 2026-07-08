@@ -22,13 +22,14 @@ namespace SBModManager {
 		/// </summary>
 		/// <returns></returns>
 		public static string GetSBMMDirectory() {
-			if (OS.HasFeature("standalone")) {
+			if (OS.HasFeature("template")) {
 				return Path.GetDirectoryName(OS.GetExecutablePath())!;
 			} else {
 #if DEBUG
 				return ProjectSettings.GlobalizePath("res://.godot/mono/temp/bin/Debug");
 #else
 				OS.Alert("If you are seeing this message, please file a bug report: Invalid branch taken when getting program directory", "This is one of those impossible errors.");
+				throw new InvalidOperationException();
 #endif
 			}
 		}
