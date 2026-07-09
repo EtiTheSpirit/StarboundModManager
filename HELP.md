@@ -195,12 +195,35 @@ To install SteamCMD:
 
 ## Part 2: Integrate Starbound Assets
 
-**These steps might be confusing. READ CAREFULLY.**
+You have several options to import Starbound's assets.
 
-* **Your "OpenStarbound folder" is the one you just dragged `assets` and `win`/`osx`/`linux` into in the step before.**
+### Option 1: Copy files
+
+**This is only available on versions 0.5.0 or higher.**
+
+1. In your Starbound installation, copy the `tiled` folder.
+2. Paste the `tiled` folder into the same folder as SBMM's exe/app file.
+3. In your Starbound installation, open the `assets` folder, and copy `packed.pak`
+4. Paste the `packed.pak` file into the same folder as SBMM's exe/app file.
+
+### Option 2: From .zip file
+
+**This is only available on versions 0.5.0 or higher.**
+
+1. If you have a Starbound install in the form of a .zip file, copy it into the same folder as SBMM's exe/app.
+2. **Make sure the zip file is named `starbound.zip`**
+    * On Windows, it may not have the `.zip` at the end at the end of its name. Windows hides file extensions by default. 
+
+**Note:** If this doesn't work, you can just do Option 1. Copy the files out of the zip file to do it.
+
+### Option 3: Manually (Not Recommended)
+
+You should only do this if the other two options fail. This option is the most complex and you are basically doing what the app does manually.
+
+* **REMEMBER: Your "OpenStarbound folder" is the one you just dragged `assets` and `win`/`osx`/`linux` into in the step before.**
     * If you skipped the last step, you need to open the `starbound` folder inside of SBMM's data directory.
     * Folder locations and instructions on how to get there are at the top of this page.
-* **Your "Steam Starbound folder" is the one from Steam** (or wherever else you downloaded it from).
+* **REMEMBER: Your "Steam Starbound folder" is the one from Steam** (or wherever else you downloaded it from).
 1. To open your **Steam Starbound folder**, right click on Starbound in Steam, and go to `Manage` > `Browse local files`.
 2. Copy the `tiled` folder *from* the **Steam Starbound folder**, and paste it *into* the **OpenStarbound folder**.
     * If you did this right, you should now have *three* folders inside of the **OpenStarbound folder**: `assets`, `tiled`, and `win`/`osx`/`linux`.
@@ -208,5 +231,3 @@ To install SteamCMD:
 3. Open the `assets` folder inside of the **OpenStarbound folder**.
 4. Copy `packed.pak` *from* `assets` in the **Steam Starbound folder** *into* `assets` in the **OpenStarbound folder**
     * If you did this right, `assets` inside of your **OpenStarbound folder** should now have two files: `opensb.pak` and `packed.pak`.
-
-Once you've done this, you have finished setting up, and can run the program again.
