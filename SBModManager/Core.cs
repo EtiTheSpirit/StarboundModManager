@@ -78,6 +78,12 @@ namespace SBModManager {
 		public TextureButton HelpButton { get; }
 
 		/// <summary>
+		/// The button to open the directory.
+		/// </summary>
+		[Import, AllowNull]
+		public TextureButton OpenSBMMDirButton { get; }
+
+		/// <summary>
 		/// The list of modpacks.
 		/// </summary>
 		[AllowNull, Import]
@@ -166,6 +172,7 @@ namespace SBModManager {
 			EditModpackButton.Pressed += OnEditModpackButtonPressed;
 			DeleteModpackButton.Pressed += OnDeleteModpackButtonPressed;
 			HelpButton.Pressed += OnHelpButtonPressed;
+			OpenSBMMDirButton.Pressed += OnOpenSBMMDirPressed;
 			ImportModpackDialog.FileSelected += OnModpackImportSelected;
 			ExportModpackDialog.FileSelected += OnModpackExportSelected;
 			ExportModpackDialog.Canceled += delegate {
@@ -235,8 +242,6 @@ To report bugs or request features, visit [color=#aff][url]https://github.com/Xa
 				}
 			}, TaskScheduler.FromCurrentSynchronizationContext());
 		}
-
-
 		private void OnFilesDropped(string[] files) {
 			string path = files.First();
 			if (Path.GetExtension(path).Equals(".sbmm", StringComparison.OrdinalIgnoreCase)) {
@@ -280,6 +285,11 @@ To report bugs or request features, visit [color=#aff][url]https://github.com/Xa
 		private void OnHelpButtonPressed() {
 			OS.ShellOpen("https://github.com/EtiTheSpirit/StarboundModManager/blob/master/HELP.md");
 		}
+
+		private void OnOpenSBMMDirPressed() {
+			OS.ShellShowInFileManager(ProjectSettings.GlobalizePath("user://"));
+		}
+
 
 		private void OnStatusMetaClicked(Variant meta) {
 			if (meta.VariantType == Variant.Type.String && Uri.TryCreate((string)meta, default, out _)) {
@@ -542,7 +552,7 @@ Drag and drop your entire ""mods"" folder onto the list in SBMM to install them,
 					if (os == "Windows" || os == "macOS") {
 						OS.ShellShowInFileManager(modsDirectory, false);
 					} else {
-						OS.ShellOpen(modpackPath);
+						OS.ShellShowInFileManager(modpackPath, true);
 					}
 					ModpackManagement.Show();
 					ModpackManagement.AssignModpack(modpack, true);

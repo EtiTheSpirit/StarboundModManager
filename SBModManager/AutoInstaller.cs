@@ -301,7 +301,7 @@ namespace SBModManager {
 			GD.Print("Porting over Starbound assets...");
 
 			// Set the directories to the same folder as this exe:
-			string parentDir = Directories.GetSBMMDirectory();
+			string parentDir = Directories.GetSBMMAppDirectory();
 			string packedPak = Path2.Combine(parentDir, "assets", "packed.pak");
 			string tiledDir = Path2.Combine(parentDir, "tiled");
 
@@ -395,7 +395,7 @@ FOUND_SB_FILES:
 		}
 
 		public static void WarnIfInsideStarboundFolder() {
-			string parentDir = Directories.GetSBMMDirectory();
+			string parentDir = Directories.GetSBMMAppDirectory();
 			string packedPak = Path2.Combine(parentDir, "assets", "packed.pak");
 			string tiledDir = Path2.Combine(parentDir, "tiled");
 

@@ -18,10 +18,10 @@ namespace SBModManager {
 	public static class Directories {
 
 		/// <summary>
-		/// Returns the path to the SBMM directory.
+		/// Returns the path to the SBMM application directory.
 		/// </summary>
 		/// <returns></returns>
-		public static string GetSBMMDirectory() {
+		public static string GetSBMMAppDirectory() {
 			if (OS.HasFeature("template")) {
 				return Path.GetDirectoryName(OS.GetExecutablePath())!;
 			} else {

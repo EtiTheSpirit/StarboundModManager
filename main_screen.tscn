@@ -18,6 +18,7 @@
 [ext_resource type="Texture2D" uid="uid://dgypvxb020xc" path="res://icons/duplicate_modpack_disabled.png" id="12_q556m"]
 [ext_resource type="Texture2D" uid="uid://bf1s0qspwwiho" path="res://icons/edit_modpack_disabled.png" id="14_0dp34"]
 [ext_resource type="Texture2D" uid="uid://bf5pa8hqjq7je" path="res://icons/delete_modpack_disabled.png" id="16_kypv5"]
+[ext_resource type="Texture2D" uid="uid://c7ym56v7p6dog" path="res://icons/open_folder.png" id="17_do8p6"]
 
 [node name="MainScreen" type="Panel" unique_id=718710276]
 anchors_preset = 15
@@ -46,7 +47,11 @@ layout_mode = 2
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 
-[node name="RunButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1669579298]
+[node name="ToolsLeft" type="HBoxContainer" parent="MarginContainer/VBoxContainer/Tools" unique_id=1468279109]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RunButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=1669579298]
 unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
@@ -60,7 +65,7 @@ ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("3_4sclt")
 
-[node name="RunServerButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=445924957]
+[node name="RunServerButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=445924957]
 unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
@@ -72,10 +77,10 @@ ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("3_4sclt")
 
-[node name="VSeparator" type="VSeparator" parent="MarginContainer/VBoxContainer/Tools" unique_id=197170488]
+[node name="VSeparator" type="VSeparator" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=197170488]
 layout_mode = 2
 
-[node name="NewModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1384851246]
+[node name="NewModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=1384851246]
 unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
@@ -87,7 +92,7 @@ ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("3_4sclt")
 
-[node name="ImportModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1291402901]
+[node name="ImportModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=1291402901]
 unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
@@ -99,7 +104,7 @@ ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("3_4sclt")
 
-[node name="DuplicateModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=733481348]
+[node name="DuplicateModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=733481348]
 unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
@@ -111,7 +116,7 @@ ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("3_4sclt")
 
-[node name="EditModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=1345846559]
+[node name="EditModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=1345846559]
 unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
@@ -123,10 +128,10 @@ ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("3_4sclt")
 
-[node name="VSeparator2" type="VSeparator" parent="MarginContainer/VBoxContainer/Tools" unique_id=1313816397]
+[node name="VSeparator2" type="VSeparator" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=1313816397]
 layout_mode = 2
 
-[node name="DeleteModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=732978601]
+[node name="DeleteModpackButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsLeft" unique_id=732978601]
 unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)
@@ -138,10 +143,28 @@ ignore_texture_size = true
 stretch_mode = 0
 script = ExtResource("3_4sclt")
 
-[node name="VSeparator3" type="VSeparator" parent="MarginContainer/VBoxContainer/Tools" unique_id=409628419]
+[node name="ToolsRight" type="HBoxContainer" parent="MarginContainer/VBoxContainer/Tools" unique_id=1238025311]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 2
+
+[node name="OpenSBMMDirButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsRight" unique_id=1715930466]
+unique_name_in_owner = true
+texture_filter = 1
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+tooltip_text = "Open the SBMM data directory.
+
+This is where all of the files used by SBMM are stored."
+texture_normal = ExtResource("17_do8p6")
+ignore_texture_size = true
+stretch_mode = 0
+script = ExtResource("3_4sclt")
+
+[node name="VSeparator3" type="VSeparator" parent="MarginContainer/VBoxContainer/Tools/ToolsRight" unique_id=409628419]
 layout_mode = 2
 
-[node name="HelpButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools" unique_id=2133547503]
+[node name="HelpButton" type="TextureButton" parent="MarginContainer/VBoxContainer/Tools/ToolsRight" unique_id=2133547503]
 unique_name_in_owner = true
 texture_filter = 1
 custom_minimum_size = Vector2(48, 48)

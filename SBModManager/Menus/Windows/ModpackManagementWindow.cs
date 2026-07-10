@@ -115,7 +115,7 @@ namespace SBModManager.Menus.Windows {
 
 		private void OnOpenFolderButtonPressed() {
 			if (CurrentModpack != null) {
-				OS.ShellOpen(Directories.GetPackDirectory(CurrentModpack.ID));
+				OS.ShellShowInFileManager(Directories.GetPackDirectory(CurrentModpack.ID), true);
 			}
 		}
 

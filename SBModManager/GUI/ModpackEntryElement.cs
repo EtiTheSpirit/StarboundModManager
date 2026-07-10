@@ -111,7 +111,7 @@ namespace SBModManager.GUI {
 				} else if (index == 3) {
 					Core.Instance.OnEditModpackButtonPressed();
 				} else if (index == 4) {
-					OS.ShellOpen(Directories.GetPackDirectory(Modpack.ID));
+					OS.ShellShowInFileManager(Directories.GetPackDirectory(Modpack.ID), true);
 				} else if (index == 5) {
 					Core.Instance.OnDuplicateModpackButtonPressed();
 				} else if (index == 6) {

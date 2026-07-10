@@ -136,7 +136,7 @@ namespace SBModManager.GUI {
 						} else if (index == 1) {
 							OnUpdatePressed();
 						} else if (index == 2) {
-							OS.ShellOpen(Mod.Owner.AbsolutePath);
+							OS.ShellShowInFileManager(Mod.Owner.AbsolutePath, true);
 							/* 3 is separator */
 						} else if (index == 4) {
 							OS.ShellOpen($"https://steamcommunity.com/sharedfiles/filedetails/?id={Mod.Owner.WorkshopID}");
