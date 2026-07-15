@@ -145,7 +145,7 @@ namespace SBModManager {
 		/// <summary>
 		/// The GUIDs of packs that need to be loaded from disk on the next <see cref="_Process(double)"/> call.
 		/// </summary>
-		private List<Guid> _pendingPacksToLoad = [];
+		private readonly List<Guid> _pendingPacksToLoad = [];
 
 		/// <summary>
 		/// FIXME: Spaghetti bullshit :(
