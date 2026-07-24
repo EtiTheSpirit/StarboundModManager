@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://buy2frwpme3xy" path="res://icons/uninstall_mod.png" id="2_3xfjt"]
 [ext_resource type="Script" uid="uid://bxg2iyfd736ia" path="res://SBModManager/GUI/RichTooltipElements/TooltipButton.cs" id="2_erhmh"]
 [ext_resource type="Texture2D" uid="uid://cahiwpn1fqcsg" path="res://icons/new_update.png" id="2_ymdbj"]
+[ext_resource type="Texture2D" uid="uid://b5msgxpn1v34n" path="res://icons/install_mod.png" id="5_ymdbj"]
 
 [node name="ModCategory" type="Control" unique_id=1434697865]
 custom_minimum_size = Vector2(0, 38)
@@ -88,5 +89,24 @@ grow_horizontal = 0
 tooltip_text = "Remove these mods from the pack."
 theme_override_constants/line_spacing = -26
 icon = ExtResource("2_3xfjt")
+icon_alignment = 1
+script = ExtResource("2_erhmh")
+
+[node name="InstallModButton" type="Button" parent="." unique_id=856241802]
+unique_name_in_owner = true
+visible = false
+texture_filter = 1
+custom_minimum_size = Vector2(31, 31)
+custom_maximum_size = Vector2(31, 31)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -36.0
+offset_bottom = 36.0
+grow_horizontal = 0
+tooltip_text = "Add these mods to the pack."
+theme_override_constants/line_spacing = -26
+icon = ExtResource("5_ymdbj")
 icon_alignment = 1
 script = ExtResource("2_erhmh")
