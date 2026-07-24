@@ -86,7 +86,9 @@ anchor_right = 1.0
 offset_left = -36.0
 offset_bottom = 36.0
 grow_horizontal = 0
-tooltip_text = "Remove these mods from the pack."
+tooltip_text = "Remove these mods from the pack.
+
+Hold shift to bypass the confirmation dialog."
 theme_override_constants/line_spacing = -26
 icon = ExtResource("2_3xfjt")
 icon_alignment = 1

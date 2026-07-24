@@ -134,14 +134,23 @@ namespace SBModManager.GUI {
 		}
 
 		private void OnUninstallPressed() {
-			ConfirmDeleteDialog dialog = Assets.CreateConfirmDeleteDialog();
-			dialog.ShowAndGetResultCustomAsync("Are you sure you want to remove these mods from the list?", "Confirm Mod Removal", "Remove").ContinueWith(delegate (Task<bool> result) {
-				if (result.Result) {
-					Pack.ModSources.Remove(Source);
-					QueueFree();
+			if (Input.IsKeyPressed(Key.Shift)) {
+				Pack.ModSources.Remove(Source);
+				if (IsInstanceValid(_viewModListPanel)) {
+					_viewModListPanel.RebuildList();
 				}
-			}, TaskScheduler.FromCurrentSynchronizationContext());
-			AddChild(dialog);
+			} else {
+				ConfirmDeleteDialog dialog = Assets.CreateConfirmDeleteDialog();
+				dialog.ShowAndGetResultCustomAsync("Are you sure you want to remove these mods from the list?", "Confirm Mod Removal", "Remove").ContinueWith(delegate (Task<bool> result) {
+					if (result.Result) {
+						Pack.ModSources.Remove(Source);
+						if (IsInstanceValid(_viewModListPanel)) {
+							_viewModListPanel.RebuildList();
+						}
+					}
+				}, TaskScheduler.FromCurrentSynchronizationContext());
+				AddChild(dialog);
+			}
 		}
 
 		private void OnUpdatePressed() {

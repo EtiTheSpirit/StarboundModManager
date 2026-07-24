@@ -124,7 +124,9 @@ texture_filter = 1
 custom_minimum_size = Vector2(36, 36)
 custom_maximum_size = Vector2(36, 36)
 layout_mode = 2
-tooltip_text = "Remove this mod from the pack."
+tooltip_text = "Remove this mod from the pack.
+
+Hold shift to bypass the confirmation dialog."
 icon = ExtResource("7_oncvm")
 icon_alignment = 1
 script = ExtResource("5_udqm2")

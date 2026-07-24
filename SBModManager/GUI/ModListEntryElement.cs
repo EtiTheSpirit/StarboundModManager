@@ -187,18 +187,25 @@ namespace SBModManager.GUI {
 
 		private void OnUninstallPressed() {
 			if (Mod.Owner.Mods.Length > 1) return;
-			ConfirmDeleteDialog dialog = Assets.CreateConfirmDeleteDialog();
-			dialog.ShowAndGetResultCustomAsync("Are you sure you want to remove this mod from the list?", "Confirm Mod Removal", "Remove").ContinueWith(delegate (Task<bool> result) {
-				if (result.Result) {
-					Pack.ModSources.Remove(Mod.Owner);
-					Pack.ModAddedOnDate.Remove(Mod.Owner);
-					if (IsInstanceValid(_viewModListPanel)) {
-						_viewModListPanel.RebuildList();
-					}
-					QueueFree();
+			if (Input.IsKeyPressed(Key.Shift)) {
+				Pack.ModSources.Remove(Mod.Owner);
+				Pack.ModAddedOnDate.Remove(Mod.Owner);
+				if (IsInstanceValid(_viewModListPanel)) {
+					_viewModListPanel.RebuildList();
 				}
-			}, TaskScheduler.FromCurrentSynchronizationContext());
-			AddChild(dialog);
+			} else {
+				ConfirmDeleteDialog dialog = Assets.CreateConfirmDeleteDialog();
+				dialog.ShowAndGetResultCustomAsync("Are you sure you want to remove this mod from the list?", "Confirm Mod Removal", "Remove").ContinueWith(delegate (Task<bool> result) {
+					if (result.Result) {
+						Pack.ModSources.Remove(Mod.Owner);
+						Pack.ModAddedOnDate.Remove(Mod.Owner);
+						if (IsInstanceValid(_viewModListPanel)) {
+							_viewModListPanel.RebuildList();
+						}
+					}
+				}, TaskScheduler.FromCurrentSynchronizationContext());
+				AddChild(dialog);
+			}
 		}
 
 		private void OnUpdatePressed() {
