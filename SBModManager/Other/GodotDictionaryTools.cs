@@ -22,5 +22,23 @@ namespace SBModManager.Other {
 			return @default;
 		}
 
+		/// <summary>
+		/// Gets an existing instance of, or adds a new instance of, a value associated with the provided <paramref name="key"/>.
+		/// </summary>
+		/// <typeparam name="TKey"></typeparam>
+		/// <typeparam name="TValue"></typeparam>
+		/// <param name="this"></param>
+		/// <param name="key"></param>
+		/// <param name="makeValue"></param>
+		/// <returns></returns>
+		public static TValue GetOrAdd<TKey, TValue>(this Dictionary<TKey, TValue> @this, TKey key, Func<TKey, TValue> makeValue) where TKey : notnull {
+			if (@this.TryGetValue(key, out TValue? existing)) {
+				return existing;
+			} else {
+				return @this[key] = makeValue(key);
+			}
+
+		}
+
 	}
 }

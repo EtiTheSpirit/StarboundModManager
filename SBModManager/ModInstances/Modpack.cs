@@ -192,7 +192,7 @@ namespace SBModManager.ModInstances {
 				File.WriteAllText(Path.Combine(Directories.GetPackDirectory(id), "missingmods.txt"), string.Join('\n', missing));
 				OS.Alert("One or more mods have been deleted from disk and will not load. The list of missing mods has been written to missingmods.txt in this pack's profile folder.");
 			}
-
+			
 			return pack;
 		}
 

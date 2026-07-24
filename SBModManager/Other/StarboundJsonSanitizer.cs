@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 namespace SBModManager.Other {
 
 	/// <summary>
-	/// Sanitizes Starbound's json files, which allows multi
+	/// Sanitizes Starbound's json files into standard json. Particularly, Starbound allows json comments and multi-line strings.
 	/// </summary>
 	public static class StarboundJsonSanitizer {
 

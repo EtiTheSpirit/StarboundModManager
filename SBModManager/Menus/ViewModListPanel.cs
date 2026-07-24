@@ -93,6 +93,23 @@ namespace SBModManager.Menus {
 		/// </summary>
 		private readonly Dictionary<ModSource, Control> _buttonBindings = [];
 
+		/// <summary>
+		/// All of the <see cref="Control"/> button/category instances that represent mods that are not installed.
+		/// </summary>
+		private readonly HashSet<Control> _notInstalledElements = [];
+
+		/// <summary>
+		/// Cached material/liquid/matmod compatibility information for the currently viewed modpack.
+		/// </summary>
+		public CompatibilityDetector.IDCompatibilityResult? CachedIDCompat { get; private set; }
+
+		/// <summary>
+		/// Cached messages for material/liquid/matmod ID incompatibilities.
+		/// </summary>
+		public Dictionary<ModArchive, List<string>>? CachedIDCompatMessages { get; private set; }
+
+		private HashSet<ModArchive>? _allArchivesAsOfLastUpdate =[];
+
 		private string? _pendingSearchString;
 		private string? _lastPendingSearchString;
 		private double _pendingSearchCooldown = 0.2;
@@ -106,6 +123,7 @@ namespace SBModManager.Menus {
 
 			SearchMods.TextChanged += OnSearchTextChanged;
 			SortTechnique.ItemSelected += OnSortTechniqueSelected;
+			ShowAllButton.Toggled += OnShowAllButtonToggled;
 			GetWindow().FilesDropped += OnFilesDropped;
 		}
 
@@ -174,7 +192,11 @@ namespace SBModManager.Menus {
 								_elementsByDisplayName.Remove(name);
 								continue;
 							}
-							element.Visible = qualifies;
+							if (_notInstalledElements.Contains(element)) {
+								element.Visible = qualifies && ShowAllButton.ButtonPressed;
+							} else {
+								element.Visible = qualifies;
+							}
 						}
 					} finally {
 						ModsList.SetBlockSignals(false);
@@ -253,6 +275,12 @@ namespace SBModManager.Menus {
 			}, TaskScheduler.FromCurrentSynchronizationContext());
 		}
 
+		private void OnShowAllButtonToggled(bool toggledOn) {
+			foreach (Control ctr in _notInstalledElements) {
+				ctr.Visible = toggledOn;
+			}
+		}
+
 		/// <summary>
 		/// Returns a <see cref="StringSearchEnumerator"/> which can be used to get all of the matching results of a search.
 		/// The enumerator returns every <see cref="ModListEntryElement"/> coupled with a boolean indicating if it's a match.
@@ -273,6 +301,25 @@ namespace SBModManager.Menus {
 				return;
 			}
 
+			// OPTIMIZATION: If we can, avoid rebuilding the entire compat list.
+			if (_allArchivesAsOfLastUpdate != null && CachedIDCompat != null) {
+				HashSet<ModArchive> archivesNow = new HashSet<ModArchive>(_allArchivesAsOfLastUpdate);
+				archivesNow.SymmetricExceptWith(EditingModpack.ModSources.Keys.SelectMany(key => key.Mods));
+				foreach (ModArchive archive in archivesNow) {
+					if (_allArchivesAsOfLastUpdate.Remove(archive)) {
+						// It was here but now it's uninstalled.
+						CachedIDCompat.Remove(archive);
+					} else if (_allArchivesAsOfLastUpdate.Add(archive)) {
+						// It was not here, and now it is.
+						CachedIDCompat.Add(archive);
+					}
+				}
+			} else {
+				CachedIDCompat = CompatibilityDetector.GetTileAndFluidIncompatibilities(EditingModpack);
+				_allArchivesAsOfLastUpdate = EditingModpack.ModSources.Keys.SelectMany(key => key.Mods).ToHashSet();
+			}
+			CachedIDCompatMessages = CachedIDCompat.GetConflictsForModTooltips(null, true);
+
 			if (skipCheckingForWorkshopUpdate) {
 				UpdateAll.Disabled = GetIDsToUpdate().Length == 0;
 			} else {
@@ -292,7 +339,10 @@ namespace SBModManager.Menus {
 			// Some extra work to do here.
 			// We need to load the image cache *before* loading anything in the list.
 			HashSet<string> md5sOfImagesToLoad = [];
-			foreach (ModSource source in EditingModpack.ModSources.Keys) {
+			//foreach (ModSource source in EditingModpack.ModSources.Keys) {
+
+			IEnumerable<ModSource> everyMod = ModSource.GetEveryModSource();
+			foreach (ModSource source in everyMod) {
 				foreach (ModArchive archive in source.Mods) {
 					md5sOfImagesToLoad.UnionWith(archive.Metadata.SBMMInlineImageHashes);
 				}
@@ -303,6 +353,7 @@ namespace SBModManager.Menus {
 
 			_elementsByDisplayName.Clear();
 			_buttonBindings.Clear();
+			_notInstalledElements.Clear();
 			foreach (KeyValuePair<ModSource, bool> srcBinding in EditingModpack.ModSources) {
 				ModSource src = srcBinding.Key;
 				bool enabled = srcBinding.Value;
@@ -310,7 +361,10 @@ namespace SBModManager.Menus {
 					ModListEntryElement mle = Assets.CreateModListEntryElementFor(this, EditingModpack, src.Mods[0]);
 					ModsList.AddChild(mle);
 					_buttonBindings[src] = mle;
-					_elementsByDisplayName.Add(src.Mods[0].Metadata.SBMMFriendlyNameNoMarkup, mle);
+					if (!_elementsByDisplayName.TryAdd(src.Mods[0].Metadata.SBMMFriendlyNameNoMarkup, mle)) {
+						mle.QueueFree();
+						_buttonBindings.Remove(src);
+					}
 				} else {
 					ModBundleElement fmg = Assets.CreateModBundleElementFor(this, EditingModpack, src);
 					ModsList.AddChild(fmg);
@@ -318,11 +372,43 @@ namespace SBModManager.Menus {
 					for (int i = 0; i < src.Mods.Length; i++) {
 						ModListEntryElement mle = Assets.CreateModListEntryElementFor(this, EditingModpack, src.Mods[i]);
 						fmg.AddModListEntry(mle);
-						_elementsByDisplayName.Add(src.Mods[i].Metadata.SBMMFriendlyNameNoMarkup, mle);
+						if (!_elementsByDisplayName.TryAdd(src.Mods[i].Metadata.SBMMFriendlyNameNoMarkup, mle)) {
+							fmg.QueueFree();
+							_buttonBindings.Remove(src);
+							break;
+						}
 					}
 				}
 			}
 
+			foreach (ModSource other in everyMod.Where(src => !EditingModpack.ModSources.ContainsKey(src))) {
+				if (other.Mods.Length == 1) {
+					ModListEntryElement mle = Assets.CreateModListEntryElementFor(this, EditingModpack, other.Mods[0]);
+					ModsList.AddChild(mle);
+					// _buttonBindings[other] = mle; // Used in sorting.
+					_notInstalledElements.Add(mle);
+					mle.Visible = ShowAllButton.ButtonPressed;
+					if (!_elementsByDisplayName.TryAdd(other.Mods[0].Metadata.SBMMFriendlyNameNoMarkup, mle)) {
+						mle.QueueFree();
+						_notInstalledElements.Remove(mle);
+					}
+				} else {
+					ModBundleElement fmg = Assets.CreateModBundleElementFor(this, EditingModpack, other);
+					ModsList.AddChild(fmg);
+					// _buttonBindings[other] = fmg; // Used in sorting
+					_notInstalledElements.Add(fmg);
+					fmg.Visible = ShowAllButton.ButtonPressed;
+					for (int i = 0; i < other.Mods.Length; i++) {
+						ModListEntryElement mle = Assets.CreateModListEntryElementFor(this, EditingModpack, other.Mods[i]);
+						fmg.AddModListEntry(mle);
+						if (!_elementsByDisplayName.TryAdd(other.Mods[i].Metadata.SBMMFriendlyNameNoMarkup, mle)) {
+							fmg.QueueFree();
+							_notInstalledElements.Remove(fmg);
+							break;
+						}
+					}
+				}
+			}
 			// Retain searches once the list updates.
 			_pendingSearchString ??= _lastPendingSearchString;
 			OnSortTechniqueSelected(EditingModpack.PreferredSortTechnique);
@@ -389,6 +475,8 @@ namespace SBModManager.Menus {
 			SearchMods.Text = string.Empty;
 			OnSearchTextChanged(string.Empty);
 			InlineThumbnailImageHelper.PurgeImages();
+			CachedIDCompat = null;
+			CachedIDCompatMessages = null;
 		}
 
 		/// <summary>

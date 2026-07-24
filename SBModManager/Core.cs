@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -241,7 +242,25 @@ To report bugs or request features, visit [color=#aff][url]https://github.com/Xa
 					} catch { }
 				}
 			}, TaskScheduler.FromCurrentSynchronizationContext());
+
+			GD.Print("Loading every single mod that is known to SBMM.");
+			string[] workshopMods = Directory.GetDirectories(Directories.GetLocalWorkshopCacheDirectory());
+			string[] manualMods = Directory.GetDirectories(Directories.GetLocalManualModCacheDirectory());
+			for (int i = 0; i < workshopMods.Length; i++) {
+				string dir = workshopMods[i];
+				string name = Path.GetFileName(dir);
+				if (long.TryParse(name, out long workshopID)) {
+					_ = ModSource.GetOrCreateSource(workshopID);
+				}
+			}
+			for (int i = 0; i < manualMods.Length; i++) {
+				string dir = manualMods[i];
+				string name = Path.GetFileName(dir);
+				_ = ModSource.GetOrCreateSource(name);
+			}
+			GD.Print("Done.");
 		}
+
 		private void OnFilesDropped(string[] files) {
 			string path = files.First();
 			if (Path.GetExtension(path).Equals(".sbmm", StringComparison.OrdinalIgnoreCase)) {
@@ -367,13 +386,6 @@ To report bugs or request features, visit [color=#aff][url]https://github.com/Xa
 
 			Modpack modpack = new Modpack();
 			CurrentModpacks.Add(modpack);
-#if DEBUG
-			if (Directory.Exists(Path2.Combine(Directories.GetLocalWorkshopCacheDirectory(), long.MinValue.ToString()))) {
-				ModSource dummy = new ModSource(-9223372036854775808);
-				modpack.ModSources[dummy] = true;
-				modpack.ModAddedOnDate[dummy] = DateTime.Now;
-			}
-#endif
 			modpack.SaveAndUpdateInitsAsync(CancellationToken.None).Wait();
 			CreateButtonForModpack(modpack);
 		}
@@ -383,7 +395,7 @@ To report bugs or request features, visit [color=#aff][url]https://github.com/Xa
 
 			if (_currentSelectedModpack != null) {
 				Modpack dupe = _currentSelectedModpack.Duplicate();
-				dupe.Name = dupe.Name + " (Copy)";
+				dupe.Name += " (Copy)";
 
 				CurrentModpacks.Add(dupe);
 				ModpackEntryElement button = CreateButtonForModpack(dupe);

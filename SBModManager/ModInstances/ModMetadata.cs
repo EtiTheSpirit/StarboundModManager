@@ -130,7 +130,11 @@ namespace SBModManager.ModInstances {
 		public ModMetadata(ModArchive modArchive, long fallbackWorkshopID = 0) {
 			GDDictionary? dictionary = MetadataReader.ReadMetadataFromDisk(modArchive.AbsolutePath);
 
-			ModID = Path.GetFileName(modArchive.AbsolutePath);
+			if (fallbackWorkshopID != 0) {
+				ModID = $"[Workshop {fallbackWorkshopID}] {Path.GetFileName(modArchive.AbsolutePath)}";
+			} else {
+				ModID = Path.GetFileName(modArchive.AbsolutePath);
+			}
 			FriendlyName = ModID;
 			Description = string.Empty;
 			Author = string.Empty;
@@ -175,12 +179,12 @@ namespace SBModManager.ModInstances {
 		/// <summary>
 		/// Create a <see cref="ModMetadata"/> directly from a dictionary loaded from <see cref="MetadataReader"/>
 		/// </summary>
-		/// <param name="fallbackModID">The name of the mod file archive being loaded. This is only used if <paramref name="json"/> is null.</param>
+		/// <param name="fallbackModID">The name of the mod file archive being loaded. This is only used if <paramref name="json"/> is null or it has no name key.</param>
 		/// <param name="json">The json containing the metadata, if it exists.</param>
 		/// <param name="fallbackWorkshopID">In case the workshop ID can't be read from the json file, this is used</param>
 		public ModMetadata(string fallbackModID, GDDictionary? json, long fallbackWorkshopID) {
 			if (json != null) {
-				ModID = json.GetValueAsStringOrDefault("name", string.Empty);
+				ModID = json.GetValueAsStringOrDefault("name", fallbackModID);
 				FriendlyName = json.GetValueAsStringOrDefault("friendlyName", ModID);
 				Description = json.GetValueAsStringOrDefault("description", string.Empty);
 				Author = json.GetValueAsStringOrDefault("author", string.Empty);

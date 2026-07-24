@@ -50,6 +50,13 @@ namespace SBModManager.GUI {
 		public Button UninstallModButton { get; }
 
 		/// <summary>
+		/// The X button used to uninstall mods.
+		/// </summary>
+
+		[Import, AllowNull]
+		public Button InstallModButton { get; }
+
+		/// <summary>
 		/// The button used to update Workshop mods.
 		/// </summary>
 
@@ -85,6 +92,7 @@ namespace SBModManager.GUI {
 			Container.ItemRectChanged += OnContainerResized;
 			UninstallModButton.Pressed += OnUninstallPressed;
 			UpdateModButton.Pressed += OnUpdatePressed;
+			InstallModButton.Pressed += OnInstallPressed;
 			if (Pack != null && Source != null) {
 				AssignModpackImpl(Pack, Source);
 			}
@@ -96,24 +104,38 @@ namespace SBModManager.GUI {
 
 		}
 
+		private void OnInstallPressed() {
+			if (Pack != null) {
+				Pack.ModSources.Add(Source, true);
+				Pack.ModAddedOnDate.Add(Source, DateTime.Now);
+				if (IsInstanceValid(_viewModListPanel)) {
+					_viewModListPanel.RebuildList();
+				}
+			}
+		}
+
 		/// <summary>
 		/// Fires when the children change. This is used in tandem with the search feature to hide bundles where all of
 		/// their inner mods have been filtered out.
 		/// </summary>
 		private void OnInnerListSortingChildren() {
-			bool anyVisible = false;
-			foreach (Node child in Children.GetChildren()) {
-				if (child is Control control) {
-					anyVisible |= control.Visible;
-					if (anyVisible) break;
+			if (!_viewModListPanel.ShowAllButton.ButtonPressed && !Pack.ModSources.ContainsKey(Source)) {
+				Visible = false;
+			} else {
+				bool anyVisible = false;
+				foreach (Node child in Children.GetChildren()) {
+					if (child is Control control) {
+						anyVisible |= control.Visible;
+						if (anyVisible) break;
+					}
 				}
+				Visible = anyVisible;
 			}
-			Visible = anyVisible;
 		}
 
 		private void OnUninstallPressed() {
 			ConfirmDeleteDialog dialog = Assets.CreateConfirmDeleteDialog();
-			dialog.ShowAndGetResultCustomAsync("Are you sure you want to remove these mods from the list?").ContinueWith(delegate (Task<bool> result) {
+			dialog.ShowAndGetResultCustomAsync("Are you sure you want to remove these mods from the list?", "Confirm Mod Removal", "Remove").ContinueWith(delegate (Task<bool> result) {
 				if (result.Result) {
 					Pack.ModSources.Remove(Source);
 					QueueFree();
@@ -156,6 +178,9 @@ namespace SBModManager.GUI {
 			}
 			Pack.ModSources[Source] = toggledOn;
 			Modulate = new Color(1, 1, 1, toggledOn ? 1 : 0.5f);
+			UninstallModButton.Modulate = new Color(1, 1, 1, toggledOn ? 1 : 2);
+			UpdateModButton.Modulate = new Color(1, 1, 1, toggledOn ? 1 : 2);
+			InstallModButton.Modulate = new Color(1, 1, 1, toggledOn ? 1 : 2);
 		}
 
 		/// <summary>
@@ -186,11 +211,20 @@ namespace SBModManager.GUI {
 		}
 
 		private void AssignModpackImpl(Modpack modpack, ModSource source) {
-			UpdateModButton.Disabled = !source.IsWorkshopMod || !WorkshopUpdateInfo.IsUpdateAvailable(source.WorkshopID);
 			Pack = modpack;
 			Source = source;
-			CategoryEnabled.SetPressedNoSignal(source.IsEnabledIn(modpack));
-			Modulate = new Color(1, 1, 1, CategoryEnabled.ButtonPressed ? 1 : 0.5f);
+			if (!modpack.ModSources.ContainsKey(source)) {
+				InstallModButton.Visible = true;
+				UninstallModButton.Visible = false;
+				UpdateModButton.Visible = false;
+				CategoryEnabled.Visible = false;
+				Modulate = new Color(1, 1, 1, 0.375f);
+				InstallModButton.Modulate = new Color(1, 1, 1, 1.0f / 0.375f);
+			} else {
+				UpdateModButton.Disabled = !source.IsWorkshopMod || !WorkshopUpdateInfo.IsUpdateAvailable(source.WorkshopID);
+				CategoryEnabled.SetPressedNoSignal(source.IsEnabledIn(modpack));
+				Modulate = new Color(1, 1, 1, CategoryEnabled.ButtonPressed ? 1 : 0.5f);
+			}
 		}
 	}
 }

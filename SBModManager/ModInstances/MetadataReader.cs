@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
+using SBModManager.IO;
 using SBModManager.Other;
 
 namespace SBModManager.ModInstances {
@@ -103,12 +104,12 @@ namespace SBModManager.ModInstances {
 				byte x = reader.ReadByte();
 				if (inde != INDE || x != X) return null; // lmfao
 
-				GDDictionary json = ReadNextJsonObject(reader);
+				GDDictionary json = SBPackedJsonReader.ReadNextJsonObject(reader);
 				// Now the file index.
 				try {
-					long indexSize = ReadVlqU(reader);
+					long indexSize = SBStreamReader.Read7BitEncodedInt64BE(reader);
 					while (indexSize-- > 0) {
-						string fileName = ReadNextDynLengthString(reader);
+						string fileName = SBStreamReader.ReadDynLengthString(reader);
 						long fileLocation = BinaryPrimitives.ReverseEndianness(reader.ReadInt64());
 						long fileSize = BinaryPrimitives.ReverseEndianness(reader.ReadInt64());
 						if (fileName == "/_previewimage") {
@@ -136,63 +137,6 @@ namespace SBModManager.ModInstances {
 			} catch {
 				return null;
 			}
-		}
-
-
-		private static string ReadNextDynLengthString(BinaryReader data) {
-			long length = ReadVlqU(data);
-			if (length > int.MaxValue) throw new NotSupportedException("String is too long. Is this data corrupted?");
-			Span<byte> utf8 = length < 512 ? stackalloc byte[(int)length] : new byte[length];
-			data.ReadExactly(utf8);
-			return Encoding.UTF8.GetString(utf8);
-		}
-
-		private static GDDictionary ReadNextJsonObject(BinaryReader data) {
-			long length = ReadVlqU(data);
-			GDDictionary resultDict = [];
-			for (long i = 0; i < length; i++) {
-				resultDict[ReadNextDynLengthString(data)] = ReadNextBinJsonValue(data);
-			}
-			return resultDict;
-		}
-
-		private static Variant ReadNextBinJsonValue(BinaryReader data) {
-			byte type = data.ReadByte();
-			if (type > 0) type--;
-			switch (type) {
-				case 1:
-					return data.ReadDouble();
-				case 2:
-					return data.ReadBoolean();
-				case 3:
-					return data.Read7BitEncodedInt64();
-				case 4:
-					return ReadNextDynLengthString(data); // Same code.
-				case 5:
-					long length = ReadVlqU(data);
-					GDArray resultArr = [];
-					for (long i = 0; i < length; i++) {
-						resultArr.Add(ReadNextBinJsonValue(data));
-					}
-					return resultArr;
-				case 6:
-					return ReadNextJsonObject(data);
-				default:
-					return default;
-			}
-
-		}
-
-		private static long ReadVlqU(BinaryReader data) {
-			long x = 0;
-			for (int i = 0; i < 10; ++i) {
-				byte oct = data.ReadByte();
-				x = (x << 7) | (long)(oct & 127);
-				if ((oct & 128) == 0) {
-					return x;
-				}
-			}
-			throw new InvalidDataException();
 		}
 
 

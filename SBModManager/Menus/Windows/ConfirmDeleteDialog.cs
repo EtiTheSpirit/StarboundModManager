@@ -22,7 +22,7 @@ namespace SBModManager.Menus.Windows {
 		/// <param name="modpackNameToDelete"></param>
 		/// <returns></returns>
 		public Task<bool> ShowAndGetResultAsync(string modpackNameToDelete) {
-			return ShowAndGetResultCustomAsync(string.Format(FORMAT, modpackNameToDelete));
+			return ShowAndGetResultCustomAsync(string.Format(FORMAT, modpackNameToDelete), "Confirm Modpack Deletion", "Delete");
 		}
 	}
 }

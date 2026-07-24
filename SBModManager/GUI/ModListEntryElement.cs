@@ -59,13 +59,19 @@ namespace SBModManager.GUI {
 		public Button UpdateModButton { get; }
 
 		/// <summary>
+		/// The button used to add a mod from the catalog.
+		/// </summary>
+		[Import, AllowNull]
+		public Button InstallModButton { get; }
+
+		/// <summary>
 		/// The mod that this represents.
 		/// </summary>
 		[AllowNull]
 		public ModArchive Mod { get; private set; }
 
 		/// <summary>
-		/// The modpack that holds this mod.
+		/// The modpack that holds this mod. Or maybe it doesn't.
 		/// </summary>
 		[AllowNull]
 		public Modpack Pack { get; private set; }
@@ -91,6 +97,7 @@ namespace SBModManager.GUI {
 			EnableMod.Toggled += OnEnableModToggled;
 			UninstallModButton.Pressed += OnUninstallPressed;
 			UpdateModButton.Pressed += OnUpdatePressed;
+			InstallModButton.Pressed += OnInstallPressed;
 		}
 
 		public override void _GuiInput(InputEvent @event) {
@@ -102,9 +109,12 @@ namespace SBModManager.GUI {
 					PopupMenu menu = new PopupMenu();
 					_popupRightClickMenu = menu;
 
+					bool isNotInstalled = !Pack.ModSources.ContainsKey(Mod.Owner);
+
 					if (Mod.Owner.IsEnabledIn(Pack) && !Mod.IsDisabledByForce) {
 						menu.AddItem("Disable");
 					} else {
+						// Yes allow it to show "Enable" for isNotInstalled
 						menu.AddItem("Enable");
 					}
 					menu.AddItem("Update from Steam Workshop");
@@ -113,9 +123,13 @@ namespace SBModManager.GUI {
 					menu.AddItem("View on Steam Workshop (Browser)");
 					menu.AddItem("View on Steam Workshop (Steam Client)");
 					menu.AddSeparator();
-					menu.AddItem("Remove from this pack");
+					if (isNotInstalled) {
+						menu.AddItem("Add to this pack");
+					} else {
+						menu.AddItem("Remove from this pack");
+					}
 
-					if (Mod.IsDisabledByForce || !Mod.IsExclusive) {
+					if (Mod.IsDisabledByForce || !Mod.IsExclusive || isNotInstalled) {
 						menu.SetItemDisabled(0, true);
 					}
 
@@ -124,7 +138,7 @@ namespace SBModManager.GUI {
 						menu.SetItemDisabled(4, true);
 						menu.SetItemDisabled(5, true);
 					} else {
-						menu.SetItemDisabled(1, !Mod.IsExclusive || !WorkshopUpdateInfo.IsUpdateAvailable(Mod.Owner.WorkshopID));
+						menu.SetItemDisabled(1, !Mod.IsExclusive || !WorkshopUpdateInfo.IsUpdateAvailable(Mod.Owner.WorkshopID) || isNotInstalled);
 					}
 					if (!Mod.IsExclusive) {
 						menu.SetItemDisabled(7, true);
@@ -144,7 +158,11 @@ namespace SBModManager.GUI {
 							OS.ShellOpen($"steam://url/communityfilepage/{Mod.Owner.WorkshopID}");
 							/* 5 is separator */
 						} else if (index == 7) {
-							OnUninstallPressed();
+							if (Pack.ModSources.ContainsKey(Mod.Owner)) {
+								OnUninstallPressed();
+							} else {
+								OnInstallPressed();
+							}
 						}
 						menu.QueueFree();
 					};
@@ -170,7 +188,7 @@ namespace SBModManager.GUI {
 		private void OnUninstallPressed() {
 			if (Mod.Owner.Mods.Length > 1) return;
 			ConfirmDeleteDialog dialog = Assets.CreateConfirmDeleteDialog();
-			dialog.ShowAndGetResultCustomAsync("Are you sure you want to remove this mod from the list?").ContinueWith(delegate (Task<bool> result) {
+			dialog.ShowAndGetResultCustomAsync("Are you sure you want to remove this mod from the list?", "Confirm Mod Removal", "Remove").ContinueWith(delegate (Task<bool> result) {
 				if (result.Result) {
 					Pack.ModSources.Remove(Mod.Owner);
 					Pack.ModAddedOnDate.Remove(Mod.Owner);
@@ -203,6 +221,16 @@ namespace SBModManager.GUI {
 			);
 		}
 
+		private void OnInstallPressed() {
+			if (Pack != null) {
+				Pack.ModSources.Add(Mod.Owner, true);
+				Pack.ModAddedOnDate.Add(Mod.Owner, DateTime.Now);
+				if (IsInstanceValid(_viewModListPanel)) {
+					_viewModListPanel.RebuildList();
+				}
+			}
+		}
+
 		public void AssignMod(ViewModListPanel from, Modpack modpack, ModArchive mod) {
 			_viewModListPanel = from;
 			Pack = modpack;
@@ -218,7 +246,16 @@ namespace SBModManager.GUI {
 			UninstallModButton.Visible = mod.IsExclusive; // Flat out hide it.
 			UpdateModButton.Disabled = !mod.Owner.IsWorkshopMod || !WorkshopUpdateInfo.IsUpdateAvailable(mod.Owner.WorkshopID);
 			UpdateModButton.Visible = UninstallModButton.Visible;
-			EnableMod.SetPressedNoSignal(mod.Owner.IsEnabledIn(modpack) && !mod.IsDisabledByForce);
+			EnableMod.Visible = modpack.ModSources.ContainsKey(mod.Owner);
+			if (!EnableMod.Visible) {
+				EnableMod.SetPressedNoSignal(false);
+				UpdateModButton.Visible = false;
+				UninstallModButton.Visible = false;
+				InstallModButton.Visible = mod.IsExclusive;
+			} else {
+				InstallModButton.Visible = false;
+				EnableMod.SetPressedNoSignal(mod.Owner.IsEnabledIn(modpack) && !mod.IsDisabledByForce);
+			}
 			ModIcon.Texture = mod.Metadata.PreviewImage;
 
 			if (mod.IsDisabledByForce) {
@@ -303,27 +340,49 @@ namespace SBModManager.GUI {
 			ModVersionAndSize.Pop();
 #pragma warning restore format
 
-			ModNameAndAuthor.TooltipText = $"[font_size=22]{formattedFriendlyName}[/font_size]\n";
-			if (mod.IsDisabledByForce) {
-				ModNameAndAuthor.TooltipText += $"[font_size=16][color=#f77]File name begins with an underscore; this is being forcibly disabled by Starbound itself.[/color][/font_size]\n";
-			}
-			ModNameAndAuthor.TooltipText += "[font_size=10][color=#aaa][i]Use Page Up and Page Down to scroll...[/i][/color]\n[/font_size]";
-			if (mod.IsDirectory) {
-				Color = new Color(0.23f, 0.08f, 0.02f);
-				ModNameAndAuthor.TooltipText += "[color=#f77]Unpacked mod![/color] This mod may take longer to load.\n";
-			}
-			if (SpecialCases.TryGetSpecialCaseFor(mod.Metadata.ModID, out string? specialCase)) {
-				Color = new Color(0.20f, 0.08f, 0.23f);
-				ModNameAndAuthor.TooltipText += $"[color=#c7f]Special note[/color]: {specialCase}\n";
-			}
+			ModNameAndAuthor.TooltipText = $"[font_size=22]{formattedFriendlyName}[/font_size]\nby {formattedAuthor}\n";
+			ModNameAndAuthor.TooltipText += "[font_size=10][color=#aaa][i]Use Page Up and Page Down to scroll...[/i][/color]\n[/font_size][hr]\n";
 
-			ModNameAndAuthor.TooltipText += "[hr]\n";
+			bool hadSpecialNote = false;
+			if (!EnableMod.Visible) {
+				hadSpecialNote = true;
+				ModNameAndAuthor.TooltipText += $"[color=#ccc]NOTICE: Not Installed![/color] [color=#aaa][i]This mod isn't part of this modpack, it's showing so you can add it, if you want to.[/i][/color]\n";
+			}
+			if (mod.IsDisabledByForce) {
+				hadSpecialNote = true;
+				ModNameAndAuthor.TooltipText += $"[color=#f77]NOTICE: Forcibly disabled![/color] [color=#aaa][i]The name of this mod's file or folder begins with an underscore. Starbound itself won't load mods that do this.[/i][/color]\n";
+			}
+			if (CompatibilityDetector.TryGetSpecialCaseFor(mod.Metadata.ModID, out string? specialCase)) {
+				hadSpecialNote = true;
+				Color = new Color(0.20f, 0.08f, 0.23f);
+				ModNameAndAuthor.TooltipText += $"[color=#c7f]SPECIAL NOTE:[/color] {specialCase}\n";
+			}
+			if (mod.IsDirectory) {
+				hadSpecialNote = true;
+				Color = new Color(0.23f, 0.20f, 0.08f);
+				ModNameAndAuthor.TooltipText += "[color=#fc7]ADVISORY: Unpacked mod![/color] [color=#aaa][i]Unpacked mods take a longer time to load than packed mods.[/i][/color]\n";
+			}
+			if (_viewModListPanel.CachedIDCompatMessages != null && _viewModListPanel.CachedIDCompatMessages.TryGetValue(mod, out List<string>? compatMessages) && compatMessages.Count > 0) {
+				hadSpecialNote = true;
+				Color = new Color(0.23f, 0.08f, 0.02f);
+				ModNameAndAuthor.TooltipText += $"[color=#f77]ERROR: ID Conflict![/color] [color=#aaa][i]Some of your other mods use the same IDs as this one.[/i][/color]\n[ul]";
+				foreach (string msg in compatMessages) {
+					ModNameAndAuthor.TooltipText += msg + "\n";
+				}
+				ModNameAndAuthor.TooltipText += "[/ul]\n[i][color=#aaa]Note: If you installed a patch to fix this, or disabled the other mod, ignore this error.[/color][/i]\n";
+			}
+			if (hadSpecialNote) {
+				ModNameAndAuthor.TooltipText += "[hr]\n";
+			}
 
 			string ttTextStored = ModNameAndAuthor.TooltipText;
 			ModNameAndAuthor.TooltipText = "[i](This description is loading in the background to not freeze the menu. Try again in a bit.)[/i]\n\n" + ModNameAndAuthor.TooltipText;
 
 			if (!EnableMod.ButtonPressed) {
 				Modulate = new Color(1, 1, 1, 0.5f);
+				InstallModButton.Modulate = new Color(1, 1, 1, 2); // lol
+				UninstallModButton.Modulate = new Color(1, 1, 1, 2);
+				UpdateModButton.Modulate = new Color(1, 1, 1, 2);
 			} else {
 				Modulate = Colors.White;
 			}

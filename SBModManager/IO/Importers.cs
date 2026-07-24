@@ -76,6 +76,8 @@ namespace SBModManager.IO {
 		/// <param name="pakOrFolderPath"></param>
 		/// <param name="isDirectoryAMod">If true or false, a directory import is treated as a mod or as a container. Otherwise it will try to guess hueristically.</param>
 		public static void PerformPakOrFolderImport(Modpack editingModpack, ViewModListPanel? viewModListPanel, string pakOrFolderPath, bool? isDirectoryAMod = null) {
+			// WAIT!
+			// Edge case:
 			try {
 				bool isDirectory = File.GetAttributes(pakOrFolderPath).HasFlag(FileAttributes.Directory);
 				GDDictionary? metadata = MetadataReader.ReadMetadataFromDisk(pakOrFolderPath);
@@ -156,8 +158,9 @@ If you created the mod that caused this hiccup, please add metadata to avoid thi
 					actualDestinationFile = null;
 				}
 
-				if (pakOrFolderPath == actualDestinationFile) {
-					// Imported directly from the local cache.
+				
+				if (actualDestinationFile != null && Path.GetFullPath(pakOrFolderPath) == Path.GetFullPath(actualDestinationFile)) {
+					// Imported directly from the local cache with the same name.
 					ModSource source = ModSource.GetOrCreateSource(name);
 					editingModpack.ModSources.TryAdd(source, true);
 					editingModpack.ModAddedOnDate.TryAdd(source, DateTime.Now);

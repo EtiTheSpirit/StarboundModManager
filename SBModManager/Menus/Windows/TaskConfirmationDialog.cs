@@ -18,13 +18,21 @@ namespace SBModManager.Menus.Windows {
 
 		private TaskCompletionSource<bool>? _tcs;
 		private string? _pendingText;
+		private string? _pendingConfirmText;
+		private string? _pendingTitle;
 
 		public override void _Ready() {
 			ImportAttribute.ImportAll(this);
 			if (_pendingText != null) {
 				RichTextLabel.Text = _pendingText;
-				Show();
 			}
+			if (_pendingConfirmText != null) {
+				GetOkButton().Text = _pendingConfirmText;
+			}
+			if (_pendingTitle != null) {
+				Title = _pendingTitle;
+			}
+			Show();
 		}
 
 		/// <summary>
@@ -33,11 +41,15 @@ namespace SBModManager.Menus.Windows {
 		/// </summary>
 		/// <param name="customText">Fully custom text to display. Can have bbcode.</param>
 		/// <returns></returns>
-		public Task<bool> ShowAndGetResultCustomAsync(string customText) {
+		public Task<bool> ShowAndGetResultCustomAsync(string customText, string title, string confirmText) {
 			if (_tcs != null) throw new InvalidOperationException("Make a new dialog, don't reuse an old one.");
 			_tcs = new TaskCompletionSource<bool>();
 			_pendingText = customText;
+			_pendingConfirmText = confirmText;
+			_pendingTitle = title;
 			if (IsNodeReady()) {
+				Title = title;
+				GetOkButton().Text = confirmText;
 				RichTextLabel.Text = _pendingText;
 				Show();
 			}

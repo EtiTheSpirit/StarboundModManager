@@ -63,6 +63,12 @@ namespace SBModManager.ModInstances {
 		public ModArchive? GetFirstModOrDefault() => Mods.Length > 0 ? Mods[0] : null;
 
 		/// <summary>
+		/// Returns every <see cref="ModSource"/> that exists right now.
+		/// </summary>
+		/// <returns></returns>
+		public static IEnumerable<ModSource> GetEveryModSource() => INTERNED_MOD_SOURCES.Values;
+
+		/// <summary>
 		/// Returns a <see cref="ModSource"/> for the provided workshop ID. The instance is shared globally.
 		/// </summary>
 		/// <param name="workshopID"></param>
@@ -98,7 +104,7 @@ namespace SBModManager.ModInstances {
 		/// Create a mod source from a workshop mod. This loads from the workshop catalog.
 		/// </summary>
 		/// <param name="workshopID"></param>
-		internal ModSource(long workshopID) {
+		private ModSource(long workshopID) {
 			AbsolutePath = Path2.Combine(Directories.GetLocalWorkshopCacheDirectory(), workshopID.ToString());
 			if (!Directory.Exists(AbsolutePath)) throw new DirectoryNotFoundException($"No directory exists at {AbsolutePath}");
 
@@ -144,18 +150,18 @@ namespace SBModManager.ModInstances {
 
 				string fileName = Path.GetFileName(file);
 				if (data != null && !data.ContainsKey("name")) {
-					data["name"] = fileName;
+					data["name"] = workshopID != 0 ? $"[Workshop {workshopID}] {fileName}" : fileName;
 				}
-				result.Add(new ModArchive(this, file, new ModMetadata(fileName, data, workshopID)));
+				result.Add(new ModArchive(this, file, new ModMetadata(workshopID != 0 ? $"[Workshop {workshopID}] {fileName}" : fileName, data, workshopID)));
 			}
 			foreach (string directory in Directory.GetDirectories(path)) {
 				GDDictionary? data = MetadataReader.GetMetadataFromDirectory(new DirectoryInfo(directory));
 
 				string fileName = Path.GetFileName(directory);
 				if (data != null && !data.ContainsKey("name")) {
-					data["name"] = fileName;
+					data["name"] = workshopID != 0 ? $"[Workshop {workshopID}] {fileName}" : fileName;
 				}
-				result.Add(new ModArchive(this, directory, new ModMetadata(fileName, data, workshopID)));
+				result.Add(new ModArchive(this, directory, new ModMetadata(workshopID != 0 ? $"[Workshop {workshopID}] {fileName}" : fileName, data, workshopID)));
 			}
 			return result.ToImmutableArray();
 		}
